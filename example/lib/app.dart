@@ -19,7 +19,7 @@ class App extends StatelessWidget {
           child: child ?? const SizedBox(),
         );
       },
-      home: const BdEkyc(c: Colors.red),
+      home: const BdEkyc(),
     );
   }
 }
