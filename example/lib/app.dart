@@ -1,3 +1,4 @@
+import 'package:bd_ekyc/bd_ekyc.dart';
 import 'package:example/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
@@ -18,6 +19,7 @@ class App extends StatelessWidget {
           child: child ?? const SizedBox(),
         );
       },
+      home: const BdEkyc(c: Colors.red),
     );
   }
 }
