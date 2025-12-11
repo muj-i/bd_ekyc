@@ -25,12 +25,14 @@ class _NidFrontScanScreenState extends State<NidFrontScanScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Reset camera and state using our custom state management
-      context.ocrController.setCameraInitialized(false);
-      context.ocrController.setCameraController(null);
-      WidgetsBinding.instance.addObserver(this);
-      _reinitializeEverything();
+      if (mounted) {
+        context.ocrController.setCameraInitialized(false);
+        context.ocrController.setCameraController(null);
+        _reinitializeEverything();
+      }
     });
   }
 

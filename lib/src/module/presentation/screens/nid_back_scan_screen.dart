@@ -27,11 +27,13 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.ocrController.setCameraInitialized(false);
-      context.ocrController.setCameraController(null);
-      WidgetsBinding.instance.addObserver(this);
-      _reinitializeEverything();
+      if (mounted) {
+        context.ocrController.setCameraInitialized(false);
+        context.ocrController.setCameraController(null);
+        _reinitializeEverything();
+      }
     });
   }
 

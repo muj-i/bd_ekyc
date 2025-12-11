@@ -7,19 +7,21 @@ class App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'BD E-Kyc Example',
-      theme: AppTheme.appLightTheme,
-      themeMode: ThemeMode.light,
-      builder: (context, child) {
-        return MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: const TextScaler.linear(1.0)),
-          child: child ?? const SizedBox(),
-        );
-      },
-      home: const BdEkyc(),
+    return NidOcrStateManager(
+      child: MaterialApp(
+        title: 'BD E-Kyc Example',
+        theme: AppTheme.appLightTheme,
+        themeMode: ThemeMode.light,
+        builder: (context, child) {
+          return MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(1.0)),
+            child: child ?? const SizedBox(),
+          );
+        },
+        home: const BdEkyc(),
+      ),
     );
   }
 }
