@@ -59,7 +59,7 @@ class OcrResultDisplay extends StatelessWidget {
             style: TextStyle(fontSize: 14, color: _getTextColor(), height: 1.4),
           ),
           if (ocrState.hasValidNidData) ...[
-            const SizedBox(height: 36),
+            const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(

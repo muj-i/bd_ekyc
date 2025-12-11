@@ -12,6 +12,7 @@ class App extends StatelessWidget {
         title: 'BD E-Kyc Example',
         theme: AppTheme.appLightTheme,
         themeMode: ThemeMode.light,
+        debugShowCheckedModeBanner: false,
         builder: (context, child) {
           return MediaQuery(
             data: MediaQuery.of(

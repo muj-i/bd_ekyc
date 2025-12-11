@@ -1,7 +1,10 @@
 export 'dart:async';
 export 'dart:io';
 
+export 'package:bd_ekyc/src/core/config/models/app_info_model.dart';
+export 'package:bd_ekyc/src/core/config/models/device_info_model.dart';
 export 'package:bd_ekyc/src/core/config/package_colors.dart';
+export 'package:bd_ekyc/src/core/utils/app_and_device_info.dart';
 export 'package:bd_ekyc/src/core/utils/debug_log.dart';
 export 'package:bd_ekyc/src/core/utils/dialog_utils.dart';
 export 'package:bd_ekyc/src/core/utils/enums.dart';
@@ -19,8 +22,12 @@ export 'package:bd_ekyc/src/module/presentation/state/nid_ocr_state_provider.dar
 export 'package:bd_ekyc/src/module/presentation/widgets/cutout_overlay_painter.dart';
 export 'package:bd_ekyc/src/module/presentation/widgets/ocr_result_display.dart';
 export 'package:camera/camera.dart';
+export 'package:device_info_plus/device_info_plus.dart';
+export 'package:flutter/foundation.dart';
 export 'package:flutter/material.dart';
+export 'package:flutter_udid/flutter_udid.dart';
 export 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+export 'package:package_info_plus/package_info_plus.dart';
 export 'package:path_provider/path_provider.dart';
 
 export 'src/module/domain/services/nid_ocr_service_complete.dart';
