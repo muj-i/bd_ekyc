@@ -51,16 +51,19 @@ class ScanScreen extends ConsumerWidget {
 
 ```dart
 // New implementation uses custom InheritedWidget
-class BdEkyc extends StatelessWidget {
+// CRITICAL: NidOcrStateManager must wrap MaterialApp
+class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return NidOcrStateManager(
-      child: YourApp(),
+      child: MaterialApp(
+        home: BdEkyc(),
+      ),
     );
   }
 }
 
-// Usage in widgets
+// Usage in widgets (works in all routes)
 class ScanScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -99,6 +102,8 @@ dependencies:
 
 ### Basic Setup
 
+**IMPORTANT:** Wrap `NidOcrStateManager` around `MaterialApp` to ensure state is available across all routes (especially for navigation to scan screens).
+
 ```dart
 import 'package:flutter/material.dart';
 import 'package:bd_ekyc/bd_ekyc.dart';
@@ -110,12 +115,20 @@ void main() {
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: BdEkyc(), // The package entry point
+    return NidOcrStateManager(
+      child: MaterialApp(
+        title: 'BD E-Kyc',
+        home: BdEkyc(), // The package entry point
+      ),
     );
   }
 }
 ```
+
+**Why wrap MaterialApp?**
+- The state manager must be above `MaterialApp` to provide state to all navigated routes
+- When you navigate to scan screens using `Navigator.push`, they need access to the state
+- This ensures `LiveOcrStateBuilder` and context extensions work in all screens
 
 ## Usage Examples
 
@@ -196,11 +209,21 @@ class MyWidget extends StatelessWidget {
 
 #### NidOcrStateManager
 
-The root widget that provides state management to the widget tree.
+The root widget that provides state management to the widget tree. **Must wrap MaterialApp** to ensure state is available across all routes.
 
 ```dart
+// ✅ CORRECT - Wraps MaterialApp
 NidOcrStateManager(
-  child: YourApp(),
+  child: MaterialApp(
+    home: YourApp(),
+  ),
+)
+
+// ❌ WRONG - State won't be available in navigated routes
+MaterialApp(
+  home: NidOcrStateManager(
+    child: YourApp(),
+  ),
 )
 ```
 
@@ -279,12 +302,14 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// NEW (v2.x)
+// NEW (v2.x) - IMPORTANT: Wrap MaterialApp with NidOcrStateManager
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: BdEkyc(),
+    return NidOcrStateManager(
+      child: MaterialApp(
+        home: BdEkyc(),
+      ),
     );
   }
 }
@@ -373,6 +398,50 @@ lib/
 - **Session Management** - Maintains state throughout the scanning process
 - **Error Recovery** - Automatic recovery from camera and OCR errors
 - **Memory Management** - Efficient cleanup of temporary files and resources
+
+## Troubleshooting
+
+### Common Issues
+
+#### ❌ Error: "No CustomStateManager<NidOcrAppState> found in context"
+
+**Cause:** `NidOcrStateManager` is not wrapping `MaterialApp`, or is placed below it in the widget tree.
+
+**Solution:**
+```dart
+// ✅ CORRECT
+return NidOcrStateManager(
+  child: MaterialApp(
+    home: BdEkyc(),
+  ),
+);
+
+// ❌ WRONG - Will cause error when navigating
+return MaterialApp(
+  home: NidOcrStateManager(
+    child: BdEkyc(),
+  ),
+);
+```
+
+#### ❌ State not accessible in navigated screens
+
+**Cause:** Same as above - `NidOcrStateManager` must be above `MaterialApp`.
+
+**Solution:** Ensure your app structure follows the correct hierarchy:
+```
+NidOcrStateManager
+  └─ MaterialApp
+      └─ BdEkyc (home)
+          └─ All navigated screens have access to state
+```
+
+#### ❌ Camera not initializing
+
+**Solution:**
+1. Check camera permissions in `AndroidManifest.xml` and `Info.plist`
+2. Ensure device has camera access enabled
+3. Use `mounted` check before accessing context in async callbacks
 
 ## Contributing
 
