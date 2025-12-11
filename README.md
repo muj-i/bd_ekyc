@@ -12,97 +12,31 @@ A comprehensive Flutter package for Bangladesh National ID (NID) card scanning u
 - ✅ **Smart & Old NID Support** - Compatible with both NID formats
 - ✅ **Custom State Management** - Built with InheritedWidget architecture
 - ✅ **Camera Integration** - Real-time camera preview with overlay guidance
-
-## Architecture Evolution
-
-### Previous Architecture (v1.x) - Provider/Riverpod Based
-
-```dart
-// Previous implementation used Provider/Riverpod
-final liveOcrStateProvider = StateNotifierProvider<LiveOcrNotifier, LiveOcrState>((ref) {
-  final service = ref.watch(nidOcrServiceProvider);
-  return LiveOcrNotifier(service);
-});
-
-// Usage in widgets
-class ScanScreen extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final ocrState = ref.watch(liveOcrStateProvider);
-    final ocrNotifier = ref.read(liveOcrStateProvider.notifier);
-
-    return Consumer(
-      builder: (context, ref, child) {
-        return SomeWidget();
-      },
-    );
-  }
-}
-```
-
-**Issues with Previous Architecture:**
-
-- Heavy dependency on Provider/Riverpod packages
-- Complex provider setup and configuration
-- Tight coupling between UI and provider patterns
-- Difficult to customize for different state management needs
-
-### Current Architecture (v2.x) - Custom InheritedWidget Based
-
-```dart
-// New implementation uses custom InheritedWidget
-// CRITICAL: NidOcrStateManager must wrap MaterialApp
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return NidOcrStateManager(
-      child: MaterialApp(
-        home: BdEkyc(),
-      ),
-    );
-  }
-}
-
-// Usage in widgets (works in all routes)
-class ScanScreen extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return LiveOcrStateBuilder(
-      builder: (context, ocrState, controller) {
-        // Access state directly
-        final extractedName = context.liveOcrState.extractedName;
-        final ocrController = context.ocrController;
-
-        return SomeWidget();
-      },
-    );
-  }
-}
-```
-
-**Benefits of New Architecture:**
-
 - ✅ **Zero External Dependencies** - Pure Flutter InheritedWidget
-- ✅ **Simplified API** - Direct context access with extensions
-- ✅ **Better Performance** - Optimized state updates and rebuilds
-- ✅ **Type Safety** - Full generic type support
-- ✅ **Easy Integration** - No complex provider setup required
-- ✅ **Customizable** - Easy to extend and modify
+- ✅ **Type Safe** - Full generic type support with compile-time safety
 
-## Getting Started
+## Installation
 
-### Installation
-
-Add this package to your `pubspec.yaml`:
+Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  bd_ekyc: ^2.0.0
+  bd_ekyc:
+    git:
+      url: https://github.com/muj-i/bd_ekyc.git
+      ref: master
 ```
+
+Then run:
+```bash
+flutter pub get
+```
+
+## Getting Started
 
 ### Basic Setup
 
-**IMPORTANT:** Wrap `NidOcrStateManager` around `MaterialApp` to ensure state is available across all routes (especially for navigation to scan screens).
+**IMPORTANT:** Wrap `NidOcrStateManager` around `MaterialApp` to ensure state is available across all routes.
 
 ```dart
 import 'package:flutter/material.dart';
@@ -150,7 +84,7 @@ BdEkyc()
 ### 2. Custom Integration with State Access
 
 ```dart
-import 'package:bd_ekyc/src/module/presentation/state/migration_helpers.dart';
+import 'package:bd_ekyc/exports.dart';
 
 class CustomScanScreen extends StatelessWidget {
   @override
@@ -274,130 +208,97 @@ controller.setError(message);
 controller.clearError();
 ```
 
-## Migration Guide (v1.x to v2.x)
+## Architecture
 
-### Step 1: Update Dependencies
+This package uses a custom state management solution built on Flutter's `InheritedWidget`. This provides:
 
-```yaml
-# Remove old dependencies
-dependencies:
-  # flutter_riverpod: ^2.3.6  # Remove
-  # provider: ^6.0.5          # Remove
+- **No external dependencies** - Pure Flutter implementation
+- **Type-safe state access** - Compile-time safety with generics
+- **Optimized rebuilds** - Only affected widgets rebuild
+- **Simple API** - Context extensions for easy access
 
-  bd_ekyc: ^2.0.0 # Update
+### Widget Hierarchy
+
+```
+NidOcrStateManager (Must wrap MaterialApp)
+  └─ MaterialApp
+      └─ Your App
+          └─ All screens have access to OCR state
 ```
 
-### Step 2: Update Widget Structure
-
-```dart
-// OLD (v1.x)
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return ProviderScope(
-      child: MaterialApp(
-        home: ConsumerWidget(...),
-      ),
-    );
-  }
-}
-
-// NEW (v2.x) - IMPORTANT: Wrap MaterialApp with NidOcrStateManager
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return NidOcrStateManager(
-      child: MaterialApp(
-        home: BdEkyc(),
-      ),
-    );
-  }
-}
-```
-
-### Step 3: Update State Access
-
-```dart
-// OLD (v1.x)
-class ScanWidget extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final ocrState = ref.watch(liveOcrStateProvider);
-    final ocrNotifier = ref.read(liveOcrStateProvider.notifier);
-
-    return Consumer(
-      builder: (context, ref, child) => SomeWidget(),
-    );
-  }
-}
-
-// NEW (v2.x)
-class ScanWidget extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return LiveOcrStateBuilder(
-      builder: (context, ocrState, controller) {
-        return SomeWidget();
-      },
-    );
-  }
-}
-```
-
-## File Structure
+## Package Structure
 
 ```
 lib/
-├── bd_ekyc.dart                           # Main package entry point
+├── bd_ekyc.dart                           # Main entry point
+├── exports.dart                           # Public API exports
 └── src/
     ├── core/
-    │   └── utils/
-    │       └── debug_log.dart
+    │   ├── config/                        # Configuration files
+    │   └── utils/                         # Utility functions
     ├── module/
     │   ├── domain/
-    │   │   ├── entities/
+    │   │   ├── entities/                  # Data models
     │   │   │   ├── live_ocr_state.dart
     │   │   │   └── nid_scan_result.dart
-    │   │   └── services/
+    │   │   └── services/                  # OCR services
     │   │       └── nid_ocr_service_complete.dart
     │   └── presentation/
-    │       ├── screens/
+    │       ├── screens/                   # UI screens
     │       │   ├── kyc_entry.dart
     │       │   ├── nid_front_scan_screen.dart
     │       │   ├── nid_back_scan_screen.dart
     │       │   └── nid_scan_summary_screen.dart
-    │       ├── state/                      # Custom State Management
+    │       ├── state/                     # State management
     │       │   ├── custom_state_manager.dart
     │       │   ├── nid_ocr_state_manager.dart
     │       │   ├── nid_ocr_state_provider.dart
-    │       │   ├── migration_helpers.dart
-    │       │   ├── README.md
-    │       │   └── MIGRATION_VERIFICATION.md
-    │       └── widgets/
+    │       │   └── migration_helpers.dart
+    │       └── widgets/                   # Reusable widgets
     │           ├── cutout_overlay_painter.dart
     │           └── ocr_result_display.dart
 ```
 
-## Business Logic Features
+## Key Features Explained
 
 ### OCR Processing
-
-- **Timer-based Auto OCR** - 2-second intervals for continuous scanning
-- **Image Preprocessing** - Automatic image enhancement and optimization
-- **Text Extraction** - Advanced OCR with pattern recognition
-- **Data Validation** - Real-time validation of extracted information
+- **Auto-detection** - 2-second intervals for continuous scanning
+- **Image preprocessing** - Automatic enhancement for better accuracy
+- **Pattern recognition** - Smart extraction of NID-specific data
+- **Real-time validation** - Instant feedback on extracted information
 
 ### Camera Management
-
 - **Auto-focus** - Intelligent camera focusing for clear captures
-- **Image Cropping** - Precise cutout-based cropping with aspect ratio handling
-- **Resolution Control** - Optimized camera settings for OCR accuracy
+- **Precise cropping** - Cutout-based extraction with aspect ratio handling
+- **Optimized resolution** - Camera settings tuned for OCR accuracy
 
-### State Persistence
+### State Management
+- **Session persistence** - Maintains state throughout scanning workflow
+- **Error recovery** - Graceful handling of camera and OCR errors
+- **Memory efficient** - Automatic cleanup of temporary resources
 
-- **Session Management** - Maintains state throughout the scanning process
-- **Error Recovery** - Automatic recovery from camera and OCR errors
-- **Memory Management** - Efficient cleanup of temporary files and resources
+## Requirements
+
+- Flutter SDK: >=3.0.0
+- Dart SDK: >=3.0.0
+- Android: minSdkVersion 21
+- iOS: 12.0+
+
+### Platform Setup
+
+#### Android
+Add to `android/app/src/main/AndroidManifest.xml`:
+```xml
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-feature android:name="android.hardware.camera" />
+```
+
+#### iOS
+Add to `ios/Runner/Info.plist`:
+```xml
+<key>NSCameraUsageDescription</key>
+<string>Camera access is required for NID scanning</string>
+```
 
 ## Troubleshooting
 
