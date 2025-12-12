@@ -723,10 +723,11 @@ class NidOcrServiceComplete {
     required String issueDate,
   }) async {
     if (frontData.isSmartNid == true) {
-      return await _validateSmartNidBackSideNew(
-        imageFile,
-        frontNidNumber: frontData.nidNumber ?? "",
-        frontDateOfBirth: frontData.nidDateOfBirth ?? "",
+      return _validateSmartNidBackSide(
+        nidNumber: frontData.nidNumber ?? "",
+        nidDateOfBirth: frontData.nidDateOfBirth ?? "",
+        backData: backData,
+        issueDate: issueDate,
       );
     } else {
       return await _validateOldNidBackSideNew(
@@ -761,10 +762,9 @@ class NidOcrServiceComplete {
       return _validateOldNidBackSide(context, issueDate);
     }
   }
-
+  */
   /// OLD: Validate smart NID back side (exact copy from original KycServices)
-  NidValidationResult _validateSmartNidBackSide(
-    BuildContext context, {
+  NidValidationResult _validateSmartNidBackSide({
     required String nidNumber,
     required String nidDateOfBirth,
     required String backData,
@@ -847,7 +847,7 @@ class NidOcrServiceComplete {
 
     return result;
   }
-
+  /*
   /// OLD: Validate old NID back side (exact copy from original KycServices)
   NidValidationResult _validateOldNidBackSide(
     BuildContext context,
@@ -1052,6 +1052,7 @@ class NidOcrServiceComplete {
     );
   }
 
+  /*
   /// Validate Smart NID back side using PDF417 barcode data.
   /// Matches NID and DOB from front side with barcode data.
   Future<NidValidationResult> _validateSmartNidBackSideNew(
@@ -1119,6 +1120,7 @@ class NidOcrServiceComplete {
           : null,
     );
   }
+  */
 
   /// Helper: Match two NID numbers with flexible comparison.
   /// Handles different formats (with/without spaces, dashes).
