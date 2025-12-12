@@ -53,7 +53,6 @@ class _NidScanManagerState extends State<NidScanManager> {
   @override
   Widget build(BuildContext context) {
     return EdgeToEdgeConfig(
-      isbottomSafeArea: true,
       builder: (isEdgeToEdge, os) =>
           NidScanProvider(controller: _controller, child: widget.child),
     );

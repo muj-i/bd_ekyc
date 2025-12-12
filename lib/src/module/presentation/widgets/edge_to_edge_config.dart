@@ -4,10 +4,8 @@ class EdgeToEdgeConfig extends StatelessWidget {
   const EdgeToEdgeConfig({
     super.key,
     required this.builder,
-    this.isbottomSafeArea,
   });
   final Widget Function(bool isEdgeToEdge, String? os) builder;
-  final bool? isbottomSafeArea;
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
@@ -16,7 +14,7 @@ class EdgeToEdgeConfig extends StatelessWidget {
         bool isEdgeToEdge = snapshot.data?.$1 ?? false;
         String? os = snapshot.data?.$2;
         return SafeArea(
-          bottom: isbottomSafeArea ?? isEdgeToEdge,
+          bottom: isEdgeToEdge,
           top: false,
           left: false,
           right: false,

@@ -1,13 +1,23 @@
 import 'package:bd_ekyc/exports.dart';
 
-class NidFrontScanScreen extends StatefulWidget {
+/// Wrapper that provides NidScanManager for the front scan screen
+class NidFrontScanScreen extends StatelessWidget {
   const NidFrontScanScreen({super.key});
 
   @override
-  State<NidFrontScanScreen> createState() => _NidFrontScanScreenState();
+  Widget build(BuildContext context) {
+    return NidScanManager(child: const _NidFrontScanScreenContent());
+  }
 }
 
-class _NidFrontScanScreenState extends State<NidFrontScanScreen>
+class _NidFrontScanScreenContent extends StatefulWidget {
+  const _NidFrontScanScreenContent();
+
+  @override
+  State<_NidFrontScanScreenContent> createState() => _NidFrontScanScreenState();
+}
+
+class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
     with WidgetsBindingObserver {
   CameraController? _controller;
   final GlobalKey _cameraKey = GlobalKey();

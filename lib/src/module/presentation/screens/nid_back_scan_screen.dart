@@ -1,15 +1,29 @@
 import 'package:bd_ekyc/exports.dart';
 
-class NidBackScanScreen extends StatefulWidget {
+/// Wrapper that provides NidScanManager for the back scan screen
+class NidBackScanScreen extends StatelessWidget {
   final NidScanResult frontScanResult;
 
   const NidBackScanScreen({super.key, required this.frontScanResult});
 
   @override
-  State<NidBackScanScreen> createState() => _NidBackScanScreenState();
+  Widget build(BuildContext context) {
+    return NidScanManager(
+      child: _NidBackScanScreenContent(frontScanResult: frontScanResult),
+    );
+  }
 }
 
-class _NidBackScanScreenState extends State<NidBackScanScreen>
+class _NidBackScanScreenContent extends StatefulWidget {
+  final NidScanResult frontScanResult;
+
+  const _NidBackScanScreenContent({required this.frontScanResult});
+
+  @override
+  State<_NidBackScanScreenContent> createState() => _NidBackScanScreenState();
+}
+
+class _NidBackScanScreenState extends State<_NidBackScanScreenContent>
     with WidgetsBindingObserver {
   CameraController? _controller;
   final GlobalKey _cameraKey = GlobalKey();
@@ -280,10 +294,7 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
       _hasAutoCaptureFired = false; // Allow retry
       // Restart auto OCR
       if (_controller != null && _controller!.value.isInitialized) {
-        ocrState.startAutoOcrForBackSide(
-          _controller!,
-          widget.frontScanResult,
-        );
+        ocrState.startAutoOcrForBackSide(_controller!, widget.frontScanResult);
       }
     }
   }
@@ -353,27 +364,6 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
                 icon: const Icon(Icons.restart_alt),
                 tooltip: "Refresh & Restart",
               ),
-              // IconButton(
-              //   onPressed: () {
-              //     final ocrNotifier = ref.read(scanDataProvider.notifier);
-              //     ocrNotifier.reset();
-              //     _hasAutoCaptureFired = false; // Reset auto-capture
-              //     _capturedBackResult = null; // Reset captured result
-              //     _lastErrorMessage = null; // Reset error tracking
-              //     setState(() {
-              //       _isReadyForScan = false; // Reset ready state
-              //     });
-              //     // Restart auto-OCR if camera is available and ready
-              //     if (_controller != null &&
-              //         _controller!.value.isInitialized &&
-              //         _isReadyForScan) {
-              //       ocrNotifier.startAutoOcrForBackSide(
-              //           _controller!, widget.frontScanResult);
-              //     }
-              //   },
-              //   icon: const Icon(Icons.restart_alt),
-              //   tooltip: "Reset Scan",
-              // ),
             ],
           ),
           body: _cameraDisposed && _capturedBackResult != null
