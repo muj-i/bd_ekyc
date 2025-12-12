@@ -181,31 +181,17 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
           } else {
             debugLog("Data mismatch between auto-scan and captured image");
             _showErrorDialog("Data verification failed. Please try again.");
-            _hasAutoCaptureFired = false; // Allow retry
-            // Restart auto OCR
-            if (_controller != null && _controller!.value.isInitialized) {
-              ocrState.startAutoOcr(_controller!);
-            }
           }
         }
       } else {
-        // Show error and allow retry
+        // Show error - user must tap Ready to Scan again
         _showErrorDialog(
           capturedOcrResult.errorMessage ?? "Front side scan failed",
         );
-        _hasAutoCaptureFired = false; // Allow retry
-        // Restart auto OCR
-        if (_controller != null && _controller!.value.isInitialized) {
-          ocrState.startAutoOcr(_controller!);
-        }
       }
     } else {
       debugLog("Front side capture failed");
-      _hasAutoCaptureFired = false; // Allow retry
-      // Restart auto OCR
-      if (_controller != null && _controller!.value.isInitialized) {
-        ocrState.startAutoOcr(_controller!);
-      }
+      _showErrorDialog("Failed to capture image. Please try again.");
     }
   }
 
@@ -289,6 +275,9 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
     if (_lastErrorMessage == error) return;
     _lastErrorMessage = error;
 
+    // Stop auto OCR immediately
+    context.scanController.stopAutoOcr();
+
     showAlertDialog(
       context,
       alertType: AlertType.error,
@@ -296,10 +285,10 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
 
       onButtonPressed: () {
         pop(context);
-        _hasAutoCaptureFired = false; // Allow retry
-        _lastErrorMessage = null; // Reset to allow new errors
+        // Reinitialize everything - user must tap Ready to Scan again
+        _reinitializeEverything();
       },
-      btnText: "Retry",
+      btnText: "OK",
     );
   }
 
