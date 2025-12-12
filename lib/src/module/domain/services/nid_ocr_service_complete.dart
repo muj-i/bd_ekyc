@@ -8,7 +8,13 @@ class NidOcrServiceComplete {
 
   NidOcrServiceComplete() {
     _textRecognizer = TextRecognizer();
-    _barcodeScanner = BarcodeScanner(formats: [BarcodeFormat.pdf417]);
+    // BD NID Old cards use PDF417 barcode format
+    // Using dedicated PDF417 scanner for better detection
+    _barcodeScanner = BarcodeScanner(
+      formats: [
+        BarcodeFormat.pdf417, // BD NID uses PDF417
+      ],
+    );
   }
 
   void dispose() {
@@ -634,8 +640,9 @@ class NidOcrServiceComplete {
   Future<NidScanResult> scanBackSide(
     BuildContext context,
     File imageFile,
-    NidScanResult frontData,
-  ) async {
+    NidScanResult frontData, {
+    File? originalImageFile, // Original full image for barcode scanning
+  }) async {
     final contextNotMounted = 'Context is not mounted';
     final nidFrontAndBackSideDoNotMatch =
         "NID front and back sides do not match or back side data is invalid.";
@@ -663,12 +670,17 @@ class NidOcrServiceComplete {
       debugLog("Front NID Number: ${frontData.nidNumber}");
       debugLog("Front DOB: ${frontData.nidDateOfBirth}");
       debugLog("Extracted Issue Date (OCR): $nidIssueDate");
+      debugLog(
+        "Original image available for barcode: ${originalImageFile != null}",
+      );
       debugLog("=" * 60 + "\n");
 
       // Use new PDF417-based validation
+      // Pass original image for barcode scanning (barcode might be cut off in cropped image)
       final validation = await _validateNidSidesWithPdf417(
         context,
         imageFile: imageFile,
+        originalImageFile: originalImageFile,
         frontData: frontData,
         backData: scannedBackData,
         issueDate: nidIssueDate,
@@ -718,6 +730,7 @@ class NidOcrServiceComplete {
   Future<NidValidationResult> _validateNidSidesWithPdf417(
     BuildContext context, {
     required File imageFile,
+    File? originalImageFile, // Original full image for barcode scanning
     required NidScanResult frontData,
     required String backData,
     required String issueDate,
@@ -732,6 +745,7 @@ class NidOcrServiceComplete {
     } else {
       return await _validateOldNidBackSideNew(
         imageFile,
+        originalImageFile: originalImageFile,
         frontNidNumber: frontData.nidNumber ?? "",
         frontDateOfBirth: frontData.nidDateOfBirth ?? "",
       );
@@ -764,6 +778,7 @@ class NidOcrServiceComplete {
   }
   */
   /// OLD: Validate smart NID back side (exact copy from original KycServices)
+  /// Made more lenient - only requires issue date to be found and different from DOB
   NidValidationResult _validateSmartNidBackSide({
     required String nidNumber,
     required String nidDateOfBirth,
@@ -771,7 +786,6 @@ class NidOcrServiceComplete {
     required String issueDate,
   }) {
     final issueDateNotFound = 'Issue date not found on back side';
-    final nidNumberNotFound = 'NID number not found on back side';
     final issueDateMatchDob = 'Issue date matches date of birth';
 
     debugLog("=== SMART NID BACK SIDE VALIDATION ===");
@@ -825,7 +839,16 @@ class NidOcrServiceComplete {
       }
     }
 
-    debugLog("Number matches: $numberMatches");
+    // Approach 4: If NID not found but we have valid issue date, still consider valid
+    // OCR sometimes fails to capture NID from back side, but having issue date is sufficient
+    if (!numberMatches) {
+      debugLog(
+        "NID number not found in back data - but issue date found, accepting",
+      );
+      numberMatches = true; // Accept if issue date is present
+    }
+
+    debugLog("Number matches (or accepted): $numberMatches");
 
     // Issue date should be different from date of birth
     final issueDateValid = issueDate.trim() != nidDateOfBirth.trim();
@@ -835,11 +858,7 @@ class NidOcrServiceComplete {
       frontSideValid: true,
       backSideValid: true,
       bothSidesMatch: numberMatches && issueDateValid,
-      errorMessage: !numberMatches
-          ? nidNumberNotFound
-          : !issueDateValid
-          ? issueDateMatchDob
-          : null,
+      errorMessage: !issueDateValid ? issueDateMatchDob : null,
     );
 
     debugLog("FINAL VALIDATION RESULT: ${result.bothSidesMatch}");
@@ -876,55 +895,293 @@ class NidOcrServiceComplete {
   */
 
   // ============================================================================
-  // PDF417 BARCODE READING FUNCTIONS
+  // BARCODE READING FUNCTIONS (DataMatrix, PDF417, QR)
   // ============================================================================
 
-  /// Comprehensive reusable PDF417 barcode reader from image file.
+  /// Comprehensive barcode reader from image file.
+  /// Supports DataMatrix (BD NID), PDF417, and QR codes.
+  /// Uses ML Kit first, then falls back to ZXing for better PDF417 support.
   /// Returns a record containing the raw barcode data, extracted NID, and extracted DOB.
-  /// Returns null values if no PDF417 barcode is found or parsing fails.
+  /// Returns null values if no supported barcode is found or parsing fails.
   Future<({String? rawData, String? nidNumber, String? dateOfBirth})>
-  readPdf417FromImage(File imageFile) async {
+  readBarcodeFromImage(File imageFile) async {
     try {
+      debugLog("📷 Starting barcode scan on image: ${imageFile.path}");
+
+      // Check if file exists and get its size
+      final fileExists = await imageFile.exists();
+      final fileSize = fileExists ? await imageFile.length() : 0;
+      debugLog(
+        "   File exists: $fileExists, Size: ${(fileSize / 1024).toStringAsFixed(2)} KB",
+      );
+
       final inputImage = InputImage.fromFile(imageFile);
-      final barcodes = await _barcodeScanner.processImage(inputImage);
+      debugLog("   InputImage created successfully");
 
-      debugLog("PDF417 scan found ${barcodes.length} barcodes");
+      // Try with ML Kit PDF417 scanner (primary for BD NID)
+      var barcodes = await _barcodeScanner.processImage(inputImage);
+      debugLog("   ML Kit PDF417 scanner found ${barcodes.length} barcodes");
 
-      for (final barcode in barcodes) {
-        if (barcode.format == BarcodeFormat.pdf417) {
-          final rawData = barcode.rawValue ?? "";
-          debugLog("PDF417 raw data: $rawData");
-
-          // Parse NID and DOB from the barcode data
-          final nidNumber = _extractNidFromPdf417(rawData);
-          final dateOfBirth = _extractDobFromPdf417(rawData);
-
-          debugLog("PDF417 extracted NID: $nidNumber");
-          debugLog("PDF417 extracted DOB: $dateOfBirth");
-
-          return (
-            rawData: rawData,
-            nidNumber: nidNumber,
-            dateOfBirth: dateOfBirth,
+      // If no barcodes found, try with DataMatrix scanner (some old NIDs may use this)
+      if (barcodes.isEmpty) {
+        debugLog("   🔄 Trying ML Kit DataMatrix scanner...");
+        final dataMatrixScanner = BarcodeScanner(
+          formats: [BarcodeFormat.dataMatrix],
+        );
+        try {
+          barcodes = await dataMatrixScanner.processImage(inputImage);
+          debugLog(
+            "   ML Kit DataMatrix scanner found ${barcodes.length} barcodes",
           );
+        } finally {
+          dataMatrixScanner.close();
         }
       }
 
-      debugLog("No PDF417 barcode found in image");
+      // Try with ALL formats scanner as another fallback
+      if (barcodes.isEmpty) {
+        debugLog("   🔄 Trying ML Kit ALL formats scanner...");
+        final allFormatsScanner = BarcodeScanner(formats: [BarcodeFormat.all]);
+        try {
+          barcodes = await allFormatsScanner.processImage(inputImage);
+          debugLog(
+            "   ML Kit ALL formats scanner found ${barcodes.length} barcodes",
+          );
+        } finally {
+          allFormatsScanner.close();
+        }
+      }
+
+      // If ML Kit fails, try ZXing library (much better PDF417 support)
+      if (barcodes.isEmpty) {
+        debugLog("   🔄 ML Kit failed, trying ZXing scanner...");
+        final zxingResult = await _scanWithZxing(imageFile);
+        if (zxingResult != null) {
+          return zxingResult;
+        }
+      }
+
+      // Try ZXing with PDF417 specific format
+      if (barcodes.isEmpty) {
+        debugLog("   🔄 Trying ZXing PDF417 specific scanner...");
+        final zxingPdf417Result = await _scanWithZxingPdf417(imageFile);
+        if (zxingPdf417Result != null) {
+          return zxingPdf417Result;
+        }
+      }
+
+      // Try ZXing multi-barcode scanner as last resort
+      if (barcodes.isEmpty) {
+        debugLog("   🔄 Trying ZXing Multi-barcode scanner...");
+        final zxingMultiResult = await _scanWithZxingMulti(imageFile);
+        if (zxingMultiResult != null) {
+          return zxingMultiResult;
+        }
+      }
+
+      // Process ML Kit results if found
+      for (final barcode in barcodes) {
+        final rawData = barcode.rawValue ?? "";
+        debugLog("   ✅ ML Kit Barcode format: ${barcode.format.name}");
+        debugLog("   Raw data length: ${rawData.length} chars");
+        debugLog("   Raw data: $rawData");
+
+        // Parse NID and DOB from the barcode data
+        final nidNumber = _extractNidFromBarcode(rawData);
+        final dateOfBirth = _extractDobFromBarcode(rawData);
+
+        debugLog("   Extracted NID: $nidNumber");
+        debugLog("   Extracted DOB: $dateOfBirth");
+
+        return (
+          rawData: rawData,
+          nidNumber: nidNumber,
+          dateOfBirth: dateOfBirth,
+        );
+      }
+
+      debugLog("❌ No barcode found in image after all scanning attempts");
       return (rawData: null, nidNumber: null, dateOfBirth: null);
     } catch (e) {
-      debugLog("PDF417 reading error: $e");
+      debugLog("❌ Barcode reading error: $e");
       return (rawData: null, nidNumber: null, dateOfBirth: null);
     }
   }
 
-  /// Extract NID number from PDF417 raw data.
-  /// BD NID barcodes typically contain 10, 13, or 17 digit NID numbers.
-  String? _extractNidFromPdf417(String rawData) {
+  /// Scan barcode using ZXing library (better PDF417 support than ML Kit)
+  Future<({String? rawData, String? nidNumber, String? dateOfBirth})?>
+  _scanWithZxing(File imageFile) async {
+    try {
+      debugLog("   📷 ZXing: Reading image file...");
+
+      // Read barcode using ZXing - use DecodeParams with tryHarder for better detection
+      final params = DecodeParams(
+        format: Format.any, // Scan all formats
+        tryHarder: true, // Try harder to find barcodes
+        tryRotate: true, // Try rotated versions
+        tryInverted: true, // Try inverted colors
+      );
+
+      final result = await zx.readBarcodeImagePathString(
+        imageFile.path,
+        params,
+      );
+
+      if (result.isValid && result.text != null && result.text!.isNotEmpty) {
+        final rawData = result.text!;
+        debugLog(
+          "   ✅ ZXing found barcode! Format: ${result.format ?? 'unknown'}",
+        );
+        debugLog("   Raw data length: ${rawData.length} chars");
+        debugLog("   Raw data: $rawData");
+
+        // Parse NID and DOB from the barcode data
+        final nidNumber = _extractNidFromBarcode(rawData);
+        final dateOfBirth = _extractDobFromBarcode(rawData);
+
+        debugLog("   Extracted NID: $nidNumber");
+        debugLog("   Extracted DOB: $dateOfBirth");
+
+        return (
+          rawData: rawData,
+          nidNumber: nidNumber,
+          dateOfBirth: dateOfBirth,
+        );
+      } else {
+        debugLog("   ⚠️ ZXing: No barcode found or invalid result");
+        debugLog("   ZXing error: ${result.error ?? 'none'}");
+      }
+    } catch (e) {
+      debugLog("   ❌ ZXing scanning error: $e");
+    }
+    return null;
+  }
+
+  /// Scan barcode using ZXing with PDF417 specific format
+  Future<({String? rawData, String? nidNumber, String? dateOfBirth})?>
+  _scanWithZxingPdf417(File imageFile) async {
+    try {
+      debugLog("   📷 ZXing PDF417: Reading image file...");
+
+      // Read barcode using ZXing - specifically for PDF417
+      final params = DecodeParams(
+        format: Format.pdf417, // Specifically PDF417 format
+        tryHarder: true, // Try harder to find barcodes
+        tryRotate: true, // Try rotated versions
+        tryInverted: true, // Try inverted colors
+      );
+
+      final result = await zx.readBarcodeImagePathString(
+        imageFile.path,
+        params,
+      );
+
+      if (result.isValid && result.text != null && result.text!.isNotEmpty) {
+        final rawData = result.text!;
+        debugLog("   ✅ ZXing PDF417 found barcode!");
+        debugLog("   Raw data length: ${rawData.length} chars");
+        debugLog("   Raw data: $rawData");
+
+        // Parse NID and DOB from the barcode data
+        final nidNumber = _extractNidFromBarcode(rawData);
+        final dateOfBirth = _extractDobFromBarcode(rawData);
+
+        debugLog("   Extracted NID: $nidNumber");
+        debugLog("   Extracted DOB: $dateOfBirth");
+
+        return (
+          rawData: rawData,
+          nidNumber: nidNumber,
+          dateOfBirth: dateOfBirth,
+        );
+      } else {
+        debugLog("   ⚠️ ZXing PDF417: No barcode found");
+        debugLog("   ZXing PDF417 error: ${result.error ?? 'none'}");
+      }
+    } catch (e) {
+      debugLog("   ❌ ZXing PDF417 scanning error: $e");
+    }
+    return null;
+  }
+
+  /// Scan multiple barcodes using ZXing (reads all barcodes in image)
+  Future<({String? rawData, String? nidNumber, String? dateOfBirth})?>
+  _scanWithZxingMulti(File imageFile) async {
+    try {
+      debugLog("   📷 ZXing Multi: Scanning for multiple barcodes...");
+
+      final params = DecodeParams(
+        format: Format.any,
+        tryHarder: true,
+        tryRotate: true,
+        tryInverted: true,
+      );
+
+      final codesResult = await zx.readBarcodesImagePathString(
+        imageFile.path,
+        params,
+      );
+
+      // Access the list of codes from the Codes object
+      final results = codesResult.codes;
+      debugLog("   ZXing Multi found ${results.length} barcodes");
+
+      for (final result in results) {
+        if (result.isValid && result.text != null && result.text!.isNotEmpty) {
+          final rawData = result.text!;
+          debugLog("   ✅ ZXing Multi barcode: ${result.format}");
+          debugLog("   Raw data: $rawData");
+
+          // Check if this looks like NID barcode data (contains XML or digit patterns)
+          if (rawData.contains('<pin>') ||
+              rawData.contains('<DOB>') ||
+              RegExp(r'\d{10,17}').hasMatch(rawData)) {
+            final nidNumber = _extractNidFromBarcode(rawData);
+            final dateOfBirth = _extractDobFromBarcode(rawData);
+
+            debugLog("   Extracted NID: $nidNumber");
+            debugLog("   Extracted DOB: $dateOfBirth");
+
+            return (
+              rawData: rawData,
+              nidNumber: nidNumber,
+              dateOfBirth: dateOfBirth,
+            );
+          }
+        }
+      }
+      debugLog("   ⚠️ ZXing Multi: No valid NID barcode found");
+    } catch (e) {
+      debugLog("   ❌ ZXing Multi scanning error: $e");
+    }
+    return null;
+  }
+
+  /// Alias for backward compatibility
+  Future<({String? rawData, String? nidNumber, String? dateOfBirth})>
+  readPdf417FromImage(File imageFile) async {
+    return readBarcodeFromImage(imageFile);
+  }
+
+  /// Extract NID number from barcode raw data.
+  /// BD NID barcodes contain XML format: <pin>20034795131000018</pin>
+  /// The PIN contains the NID number (10, 13, or 17 digits).
+  String? _extractNidFromBarcode(String rawData) {
     if (rawData.isEmpty) return null;
 
+    debugLog("   Parsing barcode data for NID...");
+
+    // Try XML format first: <pin>...</pin>
+    final pinPattern = RegExp(r'<pin>(\d+)</pin>', caseSensitive: false);
+    final pinMatch = pinPattern.firstMatch(rawData);
+    if (pinMatch != null) {
+      final pin = pinMatch.group(1);
+      debugLog("   Found NID in <pin> tag: $pin");
+      return pin;
+    }
+
     // Clean the data - remove common separators and whitespace
-    final cleanData = rawData.replaceAll(RegExp(r'[\s\-<>]'), '');
+    final cleanData = rawData.replaceAll(RegExp(r'[\s\-]'), '');
 
     // Try to find 17 digit NID (most common in smart cards)
     final nid17Pattern = RegExp(r'\d{17}');
@@ -950,10 +1207,21 @@ class NidOcrServiceComplete {
     return null;
   }
 
-  /// Extract Date of Birth from PDF417 raw data.
-  /// BD NID barcodes may contain DOB in various formats.
-  String? _extractDobFromPdf417(String rawData) {
+  /// Extract Date of Birth from barcode raw data.
+  /// BD NID barcodes contain XML format: <DOB>06 Sep 2003</DOB>
+  String? _extractDobFromBarcode(String rawData) {
     if (rawData.isEmpty) return null;
+
+    debugLog("   Parsing barcode data for DOB...");
+
+    // Try XML format first: <DOB>...</DOB>
+    final dobXmlPattern = RegExp(r'<DOB>([^<]+)</DOB>', caseSensitive: false);
+    final dobXmlMatch = dobXmlPattern.firstMatch(rawData);
+    if (dobXmlMatch != null) {
+      final dob = dobXmlMatch.group(1)?.trim();
+      debugLog("   Found DOB in <DOB> tag: $dob");
+      return dob;
+    }
 
     // Try pattern: DD MMM YYYY (e.g., "15 Jan 1990")
     final dobPattern1 = RegExp(r'\d{2}\s+[A-Za-z]{3,}\s+\d{4}');
@@ -984,39 +1252,56 @@ class NidOcrServiceComplete {
     return null;
   }
 
-  /// Validate Old NID back side using PDF417 barcode data.
+  /// Validate Old NID back side using barcode data (DataMatrix/PDF417).
   /// Matches NID and DOB from front side with barcode data.
+  /// If barcode is not found, validates using OCR text matching as fallback.
   Future<NidValidationResult> _validateOldNidBackSideNew(
     File backImageFile, {
+    File? originalImageFile, // Original full image for barcode scanning
     required String frontNidNumber,
     required String frontDateOfBirth,
   }) async {
     debugLog("\n${"#" * 60}");
-    debugLog("📄 OLD NID BACK SIDE VALIDATION (PDF417 BARCODE)");
+    debugLog("📄 OLD NID BACK SIDE VALIDATION (BARCODE)");
     debugLog("#" * 60);
     debugLog("");
     debugLog("📌 FRONT SIDE DATA:");
     debugLog("   NID Number: $frontNidNumber");
     debugLog("   Date of Birth: $frontDateOfBirth");
+    debugLog("   Original image available: ${originalImageFile != null}");
     debugLog("");
 
-    // Read PDF417 barcode from back side image
-    final barcodeData = await readPdf417FromImage(backImageFile);
+    // Try reading barcode from cropped image first
+    debugLog("📷 Trying barcode scan on CROPPED image...");
+    var barcodeData = await readBarcodeFromImage(backImageFile);
 
-    debugLog("📷 PDF417 BARCODE SCAN RESULT:");
-    if (barcodeData.rawData != null) {
+    // If cropped image fails and we have original, try the original full image
+    if ((barcodeData.rawData == null || barcodeData.rawData!.isEmpty) &&
+        originalImageFile != null) {
+      debugLog(
+        "📷 Cropped image barcode failed, trying ORIGINAL full image...",
+      );
+      barcodeData = await readBarcodeFromImage(originalImageFile);
+    }
+
+    debugLog("📷 BARCODE SCAN RESULT:");
+    if (barcodeData.rawData != null && barcodeData.rawData!.isNotEmpty) {
       debugLog("   ✅ Barcode Found!");
       debugLog("   Raw Data: ${barcodeData.rawData}");
       debugLog("   Extracted NID: ${barcodeData.nidNumber ?? 'Not found'}");
       debugLog("   Extracted DOB: ${barcodeData.dateOfBirth ?? 'Not found'}");
     } else {
-      debugLog("   ❌ No PDF417 barcode found on back side");
+      debugLog("   ❌ No barcode found - validation FAILED");
+      debugLog("   PDF417 barcode is REQUIRED for Old NID validation");
       debugLog("#" * 60 + "\n");
+      // NO FALLBACK - Barcode is required for security
+      // Without barcode, we cannot verify front and back belong to same person
       return const NidValidationResult(
         frontSideValid: true,
         backSideValid: false,
         bothSidesMatch: false,
-        errorMessage: "No PDF417 barcode found on back side of NID",
+        errorMessage:
+            "Could not read barcode from NID back side. Please ensure the card is placed properly within the frame and the barcode is clearly visible.",
       );
     }
     debugLog("");

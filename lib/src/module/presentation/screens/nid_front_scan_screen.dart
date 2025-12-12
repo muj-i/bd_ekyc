@@ -28,9 +28,9 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
   NidScanResult? _capturedFrontResult; // Store captured result
   String? _lastErrorMessage; // Track last error to prevent multiple popups
 
-  // Cutout size (optimized for NID cards)
-  final double cutoutWidth = 340;
-  final double cutoutHeight = 220;
+  // Cutout size (optimized for NID cards - increased height for full card capture)
+  final double cutoutWidth = 380; // Increased from 340 for better fit
+  final double cutoutHeight = 260; // Increased from 220 for better coverage
 
   @override
   void initState() {
@@ -391,6 +391,16 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
   }
 
   Widget _buildCameraView(OcrScanData ocrState) {
+    // Safety check - if controller is disposed or null, show loading
+    if (_controller == null ||
+        !_controller!.value.isInitialized ||
+        _cameraDisposed) {
+      debugLog("_buildCameraView: Camera not ready, showing loading");
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
+    }
+
     return Stack(
       children: [
         // Full screen camera preview
@@ -660,12 +670,14 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
               ),
             ],
           ),
-          body: _cameraDisposed && _capturedFrontResult != null
+          body: _cameraDisposed || _capturedFrontResult != null
               ? (() {
                   debugLog("Build: Showing captured result view");
                   return _buildCapturedResultView();
                 })()
-              : !isCameraInitialized
+              : !isCameraInitialized ||
+                    _controller == null ||
+                    !_controller!.value.isInitialized
               ? (() {
                   debugLog(
                     "Build: Showing loading screen - camera not initialized",

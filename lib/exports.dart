@@ -26,6 +26,7 @@ export 'package:device_info_plus/device_info_plus.dart';
 export 'package:flutter/foundation.dart';
 export 'package:flutter/material.dart';
 export 'package:flutter_udid/flutter_udid.dart';
+export 'package:flutter_zxing/flutter_zxing.dart' hide ImageFormat;
 export 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 export 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 export 'package:package_info_plus/package_info_plus.dart';
