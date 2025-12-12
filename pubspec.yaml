@@ -17,6 +17,7 @@ dependencies:
   modal_bottom_sheet: ^3.0.0
   camera: ^0.10.5+9
   google_mlkit_text_recognition: ^0.15.0
+  google_mlkit_barcode_scanning: ^0.14.1
   path_provider: ^2.1.5
   device_info_plus: ^12.3.0
   package_info_plus: ^9.0.0

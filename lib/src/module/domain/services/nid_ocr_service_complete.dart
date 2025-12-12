@@ -4,13 +4,16 @@ import 'package:bd_ekyc/exports.dart';
 /// This contains the complete, working flow from the original KYC module
 class NidOcrServiceComplete {
   late final TextRecognizer _textRecognizer;
+  late final BarcodeScanner _barcodeScanner;
 
   NidOcrServiceComplete() {
     _textRecognizer = TextRecognizer();
+    _barcodeScanner = BarcodeScanner(formats: [BarcodeFormat.pdf417]);
   }
 
   void dispose() {
     _textRecognizer.close();
+    _barcodeScanner.close();
   }
 
   /// Scan text from image using ML Kit (exact copy from KycServices)
@@ -651,19 +654,33 @@ class NidOcrServiceComplete {
       final nidIssueDate =
           _extractIssueDateFromBack(context, scannedBackData) ?? "";
 
-      debugLog("NID Data - Issue Date: $nidIssueDate");
-      debugLog("NID Data - IsSmartNID: ${frontData.isSmartNid}");
+      debugLog("\n${"=" * 60}");
+      debugLog("📋 NID BACK SIDE SCAN INITIATED");
+      debugLog("=" * 60);
+      debugLog(
+        "NID Type: ${frontData.isSmartNid == true ? '🆕 SMART NID' : '📄 OLD NID'}",
+      );
+      debugLog("Front NID Number: ${frontData.nidNumber}");
+      debugLog("Front DOB: ${frontData.nidDateOfBirth}");
+      debugLog("Extracted Issue Date (OCR): $nidIssueDate");
+      debugLog("=" * 60 + "\n");
 
-      final validation = _validateNidSides(
+      // Use new PDF417-based validation
+      final validation = await _validateNidSidesWithPdf417(
         context,
+        imageFile: imageFile,
         frontData: frontData,
         backData: scannedBackData,
         issueDate: nidIssueDate,
       );
 
-      debugLog(
-        "Back scan validation - Match: ${validation.bothSidesMatch}, BackValid: ${validation.backSideValid}",
-      );
+      debugLog("\n${"-" * 60}");
+      debugLog("📊 VALIDATION RESULT");
+      debugLog("-" * 60);
+      debugLog("Back Side Valid: ${validation.backSideValid}");
+      debugLog("Both Sides Match: ${validation.bothSidesMatch}");
+      debugLog("Error (if any): ${validation.errorMessage ?? 'None'}");
+      debugLog("-" * 60 + "\n");
 
       if (validation.backSideValid && validation.bothSidesMatch) {
         return frontData.copyWith(
@@ -696,7 +713,36 @@ class NidOcrServiceComplete {
     }
   }
 
-  /// Validate NID front and back sides (exact copy from original KycServices)
+  /// Validate NID front and back sides using PDF417 barcode
+  /// This new version reads PDF417 barcode and matches NID/DOB from front side
+  Future<NidValidationResult> _validateNidSidesWithPdf417(
+    BuildContext context, {
+    required File imageFile,
+    required NidScanResult frontData,
+    required String backData,
+    required String issueDate,
+  }) async {
+    if (frontData.isSmartNid == true) {
+      return await _validateSmartNidBackSideNew(
+        imageFile,
+        frontNidNumber: frontData.nidNumber ?? "",
+        frontDateOfBirth: frontData.nidDateOfBirth ?? "",
+      );
+    } else {
+      return await _validateOldNidBackSideNew(
+        imageFile,
+        frontNidNumber: frontData.nidNumber ?? "",
+        frontDateOfBirth: frontData.nidDateOfBirth ?? "",
+      );
+    }
+  }
+
+  // ============================================================================
+  // OLD VALIDATION FUNCTIONS (COMMENTED OUT - KEPT FOR REFERENCE)
+  // ============================================================================
+
+  /*
+  /// OLD: Validate NID front and back sides (exact copy from original KycServices)
   NidValidationResult _validateNidSides(
     BuildContext context, {
     required NidScanResult frontData,
@@ -716,7 +762,7 @@ class NidOcrServiceComplete {
     }
   }
 
-  /// Validate smart NID back side (exact copy from original KycServices)
+  /// OLD: Validate smart NID back side (exact copy from original KycServices)
   NidValidationResult _validateSmartNidBackSide(
     BuildContext context, {
     required String nidNumber,
@@ -802,7 +848,7 @@ class NidOcrServiceComplete {
     return result;
   }
 
-  /// Validate old NID back side (exact copy from original KycServices)
+  /// OLD: Validate old NID back side (exact copy from original KycServices)
   NidValidationResult _validateOldNidBackSide(
     BuildContext context,
     String issueDate,
@@ -826,5 +872,367 @@ class NidOcrServiceComplete {
       backSideValid: true,
       bothSidesMatch: true,
     );
+  }
+  */
+
+  // ============================================================================
+  // PDF417 BARCODE READING FUNCTIONS
+  // ============================================================================
+
+  /// Comprehensive reusable PDF417 barcode reader from image file.
+  /// Returns a record containing the raw barcode data, extracted NID, and extracted DOB.
+  /// Returns null values if no PDF417 barcode is found or parsing fails.
+  Future<({String? rawData, String? nidNumber, String? dateOfBirth})>
+  readPdf417FromImage(File imageFile) async {
+    try {
+      final inputImage = InputImage.fromFile(imageFile);
+      final barcodes = await _barcodeScanner.processImage(inputImage);
+
+      debugLog("PDF417 scan found ${barcodes.length} barcodes");
+
+      for (final barcode in barcodes) {
+        if (barcode.format == BarcodeFormat.pdf417) {
+          final rawData = barcode.rawValue ?? "";
+          debugLog("PDF417 raw data: $rawData");
+
+          // Parse NID and DOB from the barcode data
+          final nidNumber = _extractNidFromPdf417(rawData);
+          final dateOfBirth = _extractDobFromPdf417(rawData);
+
+          debugLog("PDF417 extracted NID: $nidNumber");
+          debugLog("PDF417 extracted DOB: $dateOfBirth");
+
+          return (
+            rawData: rawData,
+            nidNumber: nidNumber,
+            dateOfBirth: dateOfBirth,
+          );
+        }
+      }
+
+      debugLog("No PDF417 barcode found in image");
+      return (rawData: null, nidNumber: null, dateOfBirth: null);
+    } catch (e) {
+      debugLog("PDF417 reading error: $e");
+      return (rawData: null, nidNumber: null, dateOfBirth: null);
+    }
+  }
+
+  /// Extract NID number from PDF417 raw data.
+  /// BD NID barcodes typically contain 10, 13, or 17 digit NID numbers.
+  String? _extractNidFromPdf417(String rawData) {
+    if (rawData.isEmpty) return null;
+
+    // Clean the data - remove common separators and whitespace
+    final cleanData = rawData.replaceAll(RegExp(r'[\s\-<>]'), '');
+
+    // Try to find 17 digit NID (most common in smart cards)
+    final nid17Pattern = RegExp(r'\d{17}');
+    final nid17Match = nid17Pattern.firstMatch(cleanData);
+    if (nid17Match != null) {
+      return nid17Match.group(0);
+    }
+
+    // Try to find 10 digit NID
+    final nid10Pattern = RegExp(r'\d{10}');
+    final nid10Match = nid10Pattern.firstMatch(cleanData);
+    if (nid10Match != null) {
+      return nid10Match.group(0);
+    }
+
+    // Try to find 13 digit NID
+    final nid13Pattern = RegExp(r'\d{13}');
+    final nid13Match = nid13Pattern.firstMatch(cleanData);
+    if (nid13Match != null) {
+      return nid13Match.group(0);
+    }
+
+    return null;
+  }
+
+  /// Extract Date of Birth from PDF417 raw data.
+  /// BD NID barcodes may contain DOB in various formats.
+  String? _extractDobFromPdf417(String rawData) {
+    if (rawData.isEmpty) return null;
+
+    // Try pattern: DD MMM YYYY (e.g., "15 Jan 1990")
+    final dobPattern1 = RegExp(r'\d{2}\s+[A-Za-z]{3,}\s+\d{4}');
+    final match1 = dobPattern1.firstMatch(rawData);
+    if (match1 != null) {
+      return match1.group(0);
+    }
+
+    // Try pattern: DD/MM/YYYY or DD-MM-YYYY
+    final dobPattern2 = RegExp(r'\d{2}[\/\-]\d{2}[\/\-]\d{4}');
+    final match2 = dobPattern2.firstMatch(rawData);
+    if (match2 != null) {
+      return match2.group(0);
+    }
+
+    // Try pattern: YYYYMMDD (compact format)
+    final dobPattern3 = RegExp(r'(19|20)\d{6}');
+    final match3 = dobPattern3.firstMatch(rawData);
+    if (match3 != null) {
+      final compact = match3.group(0)!;
+      // Convert YYYYMMDD to DD MMM YYYY
+      final year = compact.substring(0, 4);
+      final month = compact.substring(4, 6);
+      final day = compact.substring(6, 8);
+      return "$day/$month/$year";
+    }
+
+    return null;
+  }
+
+  /// Validate Old NID back side using PDF417 barcode data.
+  /// Matches NID and DOB from front side with barcode data.
+  Future<NidValidationResult> _validateOldNidBackSideNew(
+    File backImageFile, {
+    required String frontNidNumber,
+    required String frontDateOfBirth,
+  }) async {
+    debugLog("\n${"#" * 60}");
+    debugLog("📄 OLD NID BACK SIDE VALIDATION (PDF417 BARCODE)");
+    debugLog("#" * 60);
+    debugLog("");
+    debugLog("📌 FRONT SIDE DATA:");
+    debugLog("   NID Number: $frontNidNumber");
+    debugLog("   Date of Birth: $frontDateOfBirth");
+    debugLog("");
+
+    // Read PDF417 barcode from back side image
+    final barcodeData = await readPdf417FromImage(backImageFile);
+
+    debugLog("📷 PDF417 BARCODE SCAN RESULT:");
+    if (barcodeData.rawData != null) {
+      debugLog("   ✅ Barcode Found!");
+      debugLog("   Raw Data: ${barcodeData.rawData}");
+      debugLog("   Extracted NID: ${barcodeData.nidNumber ?? 'Not found'}");
+      debugLog("   Extracted DOB: ${barcodeData.dateOfBirth ?? 'Not found'}");
+    } else {
+      debugLog("   ❌ No PDF417 barcode found on back side");
+      debugLog("#" * 60 + "\n");
+      return const NidValidationResult(
+        frontSideValid: true,
+        backSideValid: false,
+        bothSidesMatch: false,
+        errorMessage: "No PDF417 barcode found on back side of NID",
+      );
+    }
+    debugLog("");
+
+    // Match NID number
+    final nidMatches = _matchNidNumbers(frontNidNumber, barcodeData.nidNumber);
+    debugLog("🔍 MATCHING RESULTS:");
+    debugLog("   NID Match: ${nidMatches ? '✅ YES' : '❌ NO'}");
+    debugLog("      Front: $frontNidNumber");
+    debugLog("      Barcode: ${barcodeData.nidNumber ?? 'N/A'}");
+
+    // Match Date of Birth
+    final dobMatches = _matchDates(frontDateOfBirth, barcodeData.dateOfBirth);
+    debugLog("   DOB Match: ${dobMatches ? '✅ YES' : '❌ NO'}");
+    debugLog("      Front: $frontDateOfBirth");
+    debugLog("      Barcode: ${barcodeData.dateOfBirth ?? 'N/A'}");
+    debugLog("");
+
+    final bothMatch = nidMatches && dobMatches;
+
+    debugLog(
+      "🎯 FINAL RESULT: ${bothMatch ? '✅ VALIDATION PASSED' : '❌ VALIDATION FAILED'}",
+    );
+    debugLog("#" * 60 + "\n");
+
+    return NidValidationResult(
+      frontSideValid: true,
+      backSideValid: true,
+      bothSidesMatch: bothMatch,
+      errorMessage: !bothMatch
+          ? "Old NID front and back side data do not match"
+          : null,
+    );
+  }
+
+  /// Validate Smart NID back side using PDF417 barcode data.
+  /// Matches NID and DOB from front side with barcode data.
+  Future<NidValidationResult> _validateSmartNidBackSideNew(
+    File backImageFile, {
+    required String frontNidNumber,
+    required String frontDateOfBirth,
+  }) async {
+    debugLog("\n${"#" * 60}");
+    debugLog("🆕 SMART NID BACK SIDE VALIDATION (PDF417 BARCODE)");
+    debugLog("#" * 60);
+    debugLog("");
+    debugLog("📌 FRONT SIDE DATA:");
+    debugLog("   NID Number: $frontNidNumber");
+    debugLog("   Date of Birth: $frontDateOfBirth");
+    debugLog("");
+
+    // Read PDF417 barcode from back side image
+    final barcodeData = await readPdf417FromImage(backImageFile);
+
+    debugLog("📷 PDF417 BARCODE SCAN RESULT:");
+    if (barcodeData.rawData != null) {
+      debugLog("   ✅ Barcode Found!");
+      debugLog("   Raw Data: ${barcodeData.rawData}");
+      debugLog("   Extracted NID: ${barcodeData.nidNumber ?? 'Not found'}");
+      debugLog("   Extracted DOB: ${barcodeData.dateOfBirth ?? 'Not found'}");
+    } else {
+      debugLog("   ❌ No PDF417 barcode found on back side");
+      debugLog("#" * 60 + "\n");
+      return const NidValidationResult(
+        frontSideValid: true,
+        backSideValid: false,
+        bothSidesMatch: false,
+        errorMessage: "No PDF417 barcode found on back side of Smart NID",
+      );
+    }
+    debugLog("");
+
+    // Match NID number
+    final nidMatches = _matchNidNumbers(frontNidNumber, barcodeData.nidNumber);
+    debugLog("🔍 MATCHING RESULTS:");
+    debugLog("   NID Match: ${nidMatches ? '✅ YES' : '❌ NO'}");
+    debugLog("      Front: $frontNidNumber");
+    debugLog("      Barcode: ${barcodeData.nidNumber ?? 'N/A'}");
+
+    // Match Date of Birth
+    final dobMatches = _matchDates(frontDateOfBirth, barcodeData.dateOfBirth);
+    debugLog("   DOB Match: ${dobMatches ? '✅ YES' : '❌ NO'}");
+    debugLog("      Front: $frontDateOfBirth");
+    debugLog("      Barcode: ${barcodeData.dateOfBirth ?? 'N/A'}");
+    debugLog("");
+
+    final bothMatch = nidMatches && dobMatches;
+
+    debugLog(
+      "🎯 FINAL RESULT: ${bothMatch ? '✅ VALIDATION PASSED' : '❌ VALIDATION FAILED'}",
+    );
+    debugLog("#" * 60 + "\n");
+
+    return NidValidationResult(
+      frontSideValid: true,
+      backSideValid: true,
+      bothSidesMatch: bothMatch,
+      errorMessage: !bothMatch
+          ? "Smart NID front and back side data do not match"
+          : null,
+    );
+  }
+
+  /// Helper: Match two NID numbers with flexible comparison.
+  /// Handles different formats (with/without spaces, dashes).
+  bool _matchNidNumbers(String? frontNid, String? barcodeNid) {
+    if (frontNid == null || frontNid.isEmpty) return false;
+    if (barcodeNid == null || barcodeNid.isEmpty) return false;
+
+    // Clean both NID numbers
+    final cleanFront = frontNid.replaceAll(RegExp(r'[\s\-]'), '');
+    final cleanBarcode = barcodeNid.replaceAll(RegExp(r'[\s\-]'), '');
+
+    // Direct match
+    if (cleanFront == cleanBarcode) return true;
+
+    // Partial match (one contains the other)
+    if (cleanFront.contains(cleanBarcode) ||
+        cleanBarcode.contains(cleanFront)) {
+      return true;
+    }
+
+    // Match at least 8 consecutive digits
+    if (cleanFront.length >= 8 && cleanBarcode.length >= 8) {
+      final frontPart = cleanFront.substring(0, 8);
+      final barcodePart = cleanBarcode.substring(0, 8);
+      if (frontPart == barcodePart) return true;
+    }
+
+    return false;
+  }
+
+  /// Helper: Match two dates with flexible comparison.
+  /// Handles different date formats (DD MMM YYYY, DD/MM/YYYY, etc.).
+  bool _matchDates(String? frontDob, String? barcodeDob) {
+    if (frontDob == null || frontDob.isEmpty) return false;
+    if (barcodeDob == null || barcodeDob.isEmpty) return false;
+
+    // Normalize dates for comparison
+    final normalizedFront = _normalizeDate(frontDob);
+    final normalizedBarcode = _normalizeDate(barcodeDob);
+
+    if (normalizedFront == null || normalizedBarcode == null) {
+      // If normalization fails, try direct comparison
+      return frontDob.trim().toLowerCase() == barcodeDob.trim().toLowerCase();
+    }
+
+    return normalizedFront == normalizedBarcode;
+  }
+
+  /// Normalize date string to YYYYMMDD format for comparison.
+  String? _normalizeDate(String date) {
+    try {
+      // Handle DD MMM YYYY format
+      final pattern1 = RegExp(r'(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})');
+      final match1 = pattern1.firstMatch(date);
+      if (match1 != null) {
+        final day = match1.group(1)!.padLeft(2, '0');
+        final monthStr = match1.group(2)!.toLowerCase();
+        final year = match1.group(3)!;
+        final month = _monthToNumber(monthStr);
+        if (month != null) {
+          return "$year$month$day";
+        }
+      }
+
+      // Handle DD/MM/YYYY or DD-MM-YYYY format
+      final pattern2 = RegExp(r'(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})');
+      final match2 = pattern2.firstMatch(date);
+      if (match2 != null) {
+        final day = match2.group(1)!.padLeft(2, '0');
+        final month = match2.group(2)!.padLeft(2, '0');
+        final year = match2.group(3)!;
+        return "$year$month$day";
+      }
+
+      // Handle YYYYMMDD format
+      final pattern3 = RegExp(r'^(19|20)\d{6}$');
+      if (pattern3.hasMatch(date.replaceAll(RegExp(r'\s'), ''))) {
+        return date.replaceAll(RegExp(r'\s'), '');
+      }
+
+      return null;
+    } catch (e) {
+      debugLog("Date normalization error: $e");
+      return null;
+    }
+  }
+
+  /// Convert month name to 2-digit number.
+  String? _monthToNumber(String month) {
+    const months = {
+      'jan': '01',
+      'january': '01',
+      'feb': '02',
+      'february': '02',
+      'mar': '03',
+      'march': '03',
+      'apr': '04',
+      'april': '04',
+      'may': '05',
+      'jun': '06',
+      'june': '06',
+      'jul': '07',
+      'july': '07',
+      'aug': '08',
+      'august': '08',
+      'sep': '09',
+      'september': '09',
+      'oct': '10',
+      'october': '10',
+      'nov': '11',
+      'november': '11',
+      'dec': '12',
+      'december': '12',
+    };
+    return months[month.toLowerCase()];
   }
 }
