@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:bd_ekyc/exports.dart';
+import 'package:bd_ekyc/src/module/presentation/widgets/edge_to_edge_config.dart';
 
 class NidOcrStateManager extends StatefulWidget {
   final Widget child;
@@ -31,19 +32,22 @@ class _NidOcrStateManagerState extends State<NidOcrStateManager> {
 
   @override
   Widget build(BuildContext context) {
-    return CustomStateful<NidOcrAppState>(
-      initialState: NidOcrAppState(
-        liveOcrState: const LiveOcrState(),
-        isCameraInitialized: false,
-        cameraController: null,
-        finalScanResult: null,
-        controller: _controller,
+    return EdgeToEdgeConfig(
+      isbottomSafeArea: true,
+      builder: (isEdgeToEdge, os) => CustomStateful<NidOcrAppState>(
+        initialState: NidOcrAppState(
+          liveOcrState: const LiveOcrState(),
+          isCameraInitialized: false,
+          cameraController: null,
+          finalScanResult: null,
+          controller: _controller,
+        ),
+        builder: (context, state, setState) {
+          _controller._updateState = setState;
+          _controller._currentState = state;
+          return widget.child;
+        },
       ),
-      builder: (context, state, setState) {
-        _controller._updateState = setState;
-        _controller._currentState = state;
-        return widget.child;
-      },
     );
   }
 }
