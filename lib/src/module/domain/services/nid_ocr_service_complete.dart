@@ -1338,11 +1338,6 @@ class NidOcrServiceComplete {
     return null;
   }
 
-  /// Alias for backward compatibility
-  Future<({String? rawData, String? nidNumber, String? dateOfBirth})>
-  readPdf417FromImage(File imageFile) async {
-    return readBarcodeFromImage(imageFile);
-  }
 
   /// Extract NID number from barcode raw data.
   /// BD NID barcodes contain XML format: <pin>20034795131000018</pin>
@@ -1518,76 +1513,6 @@ class NidOcrServiceComplete {
           : null,
     );
   }
-
-  /*
-  /// Validate Smart NID back side using PDF417 barcode data.
-  /// Matches NID and DOB from front side with barcode data.
-  Future<NidValidationResult> _validateSmartNidBackSideNew(
-    File backImageFile, {
-    required String frontNidNumber,
-    required String frontDateOfBirth,
-  }) async {
-    debugLog("\n${"#" * 60}");
-    debugLog("🆕 SMART NID BACK SIDE VALIDATION (PDF417 BARCODE)");
-    debugLog("#" * 60);
-    debugLog("");
-    debugLog("📌 FRONT SIDE DATA:");
-    debugLog("   NID Number: $frontNidNumber");
-    debugLog("   Date of Birth: $frontDateOfBirth");
-    debugLog("");
-
-    // Read PDF417 barcode from back side image
-    final barcodeData = await readPdf417FromImage(backImageFile);
-
-    debugLog("📷 PDF417 BARCODE SCAN RESULT:");
-    if (barcodeData.rawData != null) {
-      debugLog("   ✅ Barcode Found!");
-      debugLog("   Raw Data: ${barcodeData.rawData}");
-      debugLog("   Extracted NID: ${barcodeData.nidNumber ?? 'Not found'}");
-      debugLog("   Extracted DOB: ${barcodeData.dateOfBirth ?? 'Not found'}");
-    } else {
-      debugLog("   ❌ No PDF417 barcode found on back side");
-      debugLog("#" * 60 + "\n");
-      return const NidValidationResult(
-        frontSideValid: true,
-        backSideValid: false,
-        bothSidesMatch: false,
-        errorMessage: "No PDF417 barcode found on back side of Smart NID",
-      );
-    }
-    debugLog("");
-
-    // Match NID number
-    final nidMatches = _matchNidNumbers(frontNidNumber, barcodeData.nidNumber);
-    debugLog("🔍 MATCHING RESULTS:");
-    debugLog("   NID Match: ${nidMatches ? '✅ YES' : '❌ NO'}");
-    debugLog("      Front: $frontNidNumber");
-    debugLog("      Barcode: ${barcodeData.nidNumber ?? 'N/A'}");
-
-    // Match Date of Birth
-    final dobMatches = _matchDates(frontDateOfBirth, barcodeData.dateOfBirth);
-    debugLog("   DOB Match: ${dobMatches ? '✅ YES' : '❌ NO'}");
-    debugLog("      Front: $frontDateOfBirth");
-    debugLog("      Barcode: ${barcodeData.dateOfBirth ?? 'N/A'}");
-    debugLog("");
-
-    final bothMatch = nidMatches && dobMatches;
-
-    debugLog(
-      "🎯 FINAL RESULT: ${bothMatch ? '✅ VALIDATION PASSED' : '❌ VALIDATION FAILED'}",
-    );
-    debugLog("#" * 60 + "\n");
-
-    return NidValidationResult(
-      frontSideValid: true,
-      backSideValid: true,
-      bothSidesMatch: bothMatch,
-      errorMessage: !bothMatch
-          ? "Smart NID front and back side data do not match"
-          : null,
-    );
-  }
-  */
 
   /// Helper: Match two NID numbers with flexible comparison.
   /// Handles different formats (with/without spaces, dashes).
