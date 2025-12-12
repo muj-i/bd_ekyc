@@ -1,6 +1,7 @@
 import 'dart:io';
 
-class LiveOcrState {
+/// Data class holding OCR scan results during live scanning
+class OcrScanData {
   final String? ocrText;
   final String? extractedNidNumber;
   final String? extractedDateOfBirth;
@@ -10,9 +11,9 @@ class LiveOcrState {
   final bool isProcessing;
   final String? errorMessage;
   final File? lastCapturedImage;
-  final bool? hasValidBackData; // New field for back side validation
+  final bool? hasValidBackData;
 
-  const LiveOcrState({
+  const OcrScanData({
     this.ocrText,
     this.extractedNidNumber,
     this.extractedDateOfBirth,
@@ -25,7 +26,7 @@ class LiveOcrState {
     this.hasValidBackData,
   });
 
-  LiveOcrState copyWith({
+  OcrScanData copyWith({
     String? ocrText,
     String? extractedNidNumber,
     String? extractedDateOfBirth,
@@ -37,7 +38,7 @@ class LiveOcrState {
     File? lastCapturedImage,
     bool? hasValidBackData,
   }) {
-    return LiveOcrState(
+    return OcrScanData(
       ocrText: ocrText ?? this.ocrText,
       extractedNidNumber: extractedNidNumber ?? this.extractedNidNumber,
       extractedDateOfBirth: extractedDateOfBirth ?? this.extractedDateOfBirth,
@@ -63,21 +64,22 @@ class LiveOcrState {
       return "Point NID at the cutout area";
     }
 
-    // Check if this is back side scanning mode
     final isBackSideMode = hasValidBackData != null;
 
     String result = "";
     if (isBackSideMode) {
-      // For back side, show different information
       (issueDate != null) ? result += "Issue Date: $issueDate\n" : null;
       result += hasValidBackData == true
           ? "✓ Valid back side detected"
           : "⚠ Scanning back side...";
     } else {
-      // For front side, show normal information
-      (extractedNidNumber != null) ? result += "NID: $extractedNidNumber\n" : null;
+      (extractedNidNumber != null)
+          ? result += "NID: $extractedNidNumber\n"
+          : null;
       (extractedName != null) ? result += "Name: $extractedName\n" : null;
-      (extractedDateOfBirth != null) ? result += "DOB: $extractedDateOfBirth\n" : null;
+      (extractedDateOfBirth != null)
+          ? result += "DOB: $extractedDateOfBirth\n"
+          : null;
     }
 
     if (result.isEmpty && ocrText != null) {
@@ -90,6 +92,6 @@ class LiveOcrState {
 
   @override
   String toString() {
-    return 'LiveOcrState(extractedNidNumber: $extractedNidNumber, extractedName: $extractedName, extractedDateOfBirth: $extractedDateOfBirth, isProcessing: $isProcessing, errorMessage: $errorMessage)';
+    return 'OcrScanData(nid: $extractedNidNumber, name: $extractedName, dob: $extractedDateOfBirth, processing: $isProcessing)';
   }
 }

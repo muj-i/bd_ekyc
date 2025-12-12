@@ -1,8 +1,7 @@
-import 'package:bd_ekyc/src/module/domain/entities/live_ocr_state.dart';
-import 'package:flutter/material.dart';
+import 'package:bd_ekyc/exports.dart';
 
 class OcrResultDisplay extends StatelessWidget {
-  final LiveOcrState ocrState;
+  final OcrScanData ocrState;
   final VoidCallback? onClear;
 
   const OcrResultDisplay({super.key, required this.ocrState, this.onClear});

@@ -30,8 +30,8 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        context.ocrController.setCameraInitialized(false);
-        context.ocrController.setCameraController(null);
+        context.scanController.setCameraInitialized(false);
+        context.scanController.setCameraController(null);
         _reinitializeEverything();
       }
     });
@@ -43,7 +43,7 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
 
     // Stop OCR timer first to prevent async operations
     try {
-      context.ocrController.stopAutoOcr();
+      context.scanController.stopAutoOcr();
     } catch (e) {
       // Ignore if context is already disposed
       debugLog("OCR stop failed during dispose: $e");
@@ -64,7 +64,7 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
     }
 
     if (state == AppLifecycleState.inactive) {
-      context.ocrController.stopAutoOcr();
+      context.scanController.stopAutoOcr();
     } else if (state == AppLifecycleState.resumed) {
       _initCamera();
     }
@@ -91,8 +91,8 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
 
       if (mounted) {
         setState(() {});
-        context.ocrController.setCameraInitialized(true);
-        context.ocrController.setCameraController(_controller);
+        context.scanController.setCameraInitialized(true);
+        context.scanController.setCameraController(_controller);
 
         // Don't start auto OCR immediately - wait for ready button
         debugLog("Camera initialized for back side scan");
@@ -119,12 +119,12 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
     });
 
     // Stop and reset OCR
-    context.ocrController.stopAutoOcr();
-    context.ocrController.reset();
+    context.scanController.stopAutoOcr();
+    context.scanController.reset();
 
     // Reset state
-    context.ocrController.setCameraInitialized(false);
-    context.ocrController.setCameraController(null);
+    context.scanController.setCameraInitialized(false);
+    context.scanController.setCameraController(null);
 
     // Dispose current camera
     await _controller?.dispose();
@@ -161,7 +161,7 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
 
     // Start OCR for back side only when ready
     if (_controller != null && _controller!.value.isInitialized) {
-      context.ocrController.startAutoOcrForBackSide(
+      context.scanController.startAutoOcrForBackSide(
         _controller!,
         widget.frontScanResult,
       );
@@ -169,15 +169,15 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
   }
 
   void _disposeCamera() async {
-    context.ocrController.stopAutoOcr();
+    context.scanController.stopAutoOcr();
     await _controller?.dispose();
     _controller = null;
 
     // Delay state updates to avoid rebuild conflicts
     Future.microtask(() {
       if (mounted) {
-        context.ocrController.setCameraInitialized(false);
-        context.ocrController.setCameraController(null);
+        context.scanController.setCameraInitialized(false);
+        context.scanController.setCameraController(null);
       }
     });
     setState(() {
@@ -195,12 +195,12 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
     _hasAutoCaptureFired = true;
     debugLog("Auto-capturing back side image when green success detected");
 
-    final ocrController = context.ocrController;
+    final ocrState = context.scanController;
 
     // Stop auto OCR during capture
-    ocrController.stopAutoOcr();
+    ocrState.stopAutoOcr();
 
-    final capturedFile = await ocrController.captureAndCrop(
+    final capturedFile = await ocrState.captureAndCrop(
       controller: _controller!,
       cutoutWidth: cutoutWidth,
       cutoutHeight: cutoutHeight,
@@ -212,7 +212,7 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
       debugLog("Back side image captured, processing and cross-checking");
 
       // Process the captured image with OCR
-      final capturedOcrResult = await ocrController.scanBackSide(
+      final capturedOcrResult = await ocrState.scanBackSide(
         context,
         capturedFile,
         widget.frontScanResult,
@@ -221,7 +221,7 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
       if (capturedOcrResult.success) {
         // Cross-check auto-scan data vs captured OCR data
         if (mounted) {
-          final autoScanData = context.liveOcrState;
+          final autoScanData = context.scanData;
           final isDataMatched = _crossCheckBackData(
             autoScanData,
             capturedOcrResult,
@@ -254,7 +254,7 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
             _hasAutoCaptureFired = false; // Allow retry
             // Restart auto OCR
             if (_controller != null && _controller!.value.isInitialized) {
-              ocrController.startAutoOcrForBackSide(
+              ocrState.startAutoOcrForBackSide(
                 _controller!,
                 widget.frontScanResult,
               );
@@ -269,7 +269,7 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
         _hasAutoCaptureFired = false; // Allow retry
         // Restart auto OCR
         if (_controller != null && _controller!.value.isInitialized) {
-          ocrController.startAutoOcrForBackSide(
+          ocrState.startAutoOcrForBackSide(
             _controller!,
             widget.frontScanResult,
           );
@@ -280,7 +280,7 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
       _hasAutoCaptureFired = false; // Allow retry
       // Restart auto OCR
       if (_controller != null && _controller!.value.isInitialized) {
-        ocrController.startAutoOcrForBackSide(
+        ocrState.startAutoOcrForBackSide(
           _controller!,
           widget.frontScanResult,
         );
@@ -323,7 +323,7 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
 
   @override
   Widget build(BuildContext context) {
-    return LiveOcrStateBuilder(
+    return NidScanBuilder(
       builder: (context, ocrState, controller) {
         final isCameraInitialized = context.isCameraInitialized;
 
@@ -355,7 +355,7 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
               ),
               // IconButton(
               //   onPressed: () {
-              //     final ocrNotifier = ref.read(liveOcrStateProvider.notifier);
+              //     final ocrNotifier = ref.read(scanDataProvider.notifier);
               //     ocrNotifier.reset();
               //     _hasAutoCaptureFired = false; // Reset auto-capture
               //     _capturedBackResult = null; // Reset captured result
@@ -490,7 +490,7 @@ class _NidBackScanScreenState extends State<NidBackScanScreen>
     );
   }
 
-  Widget _buildCameraView(LiveOcrState ocrState) {
+  Widget _buildCameraView(OcrScanData ocrState) {
     return Stack(
       children: [
         // Camera preview
