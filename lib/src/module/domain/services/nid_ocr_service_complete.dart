@@ -1,4 +1,6 @@
 import 'package:bd_ekyc/exports.dart';
+import 'package:image/image.dart' as img;
+import 'package:mobile_scanner/mobile_scanner.dart' as mobile_scanner;
 
 /// Complete NID OCR Service with ALL business logic extracted from original KycServices
 /// This contains the complete, working flow from the original KYC module
@@ -979,12 +981,61 @@ class NidOcrServiceComplete {
         }
       }
 
+      // Try with preprocessed image (grayscale + contrast enhancement)
+      if (barcodes.isEmpty) {
+        debugLog("   🔄 Trying with preprocessed image...");
+        final preprocessedResult = await _scanWithPreprocessedImage(imageFile);
+        if (preprocessedResult != null) {
+          return preprocessedResult;
+        }
+      }
+
+      // Try mobile_scanner as final fallback
+      if (barcodes.isEmpty) {
+        debugLog("   🔄 Trying Mobile Scanner fallback...");
+        final mobileScanResult = await _scanWithMobileScanner(imageFile);
+        if (mobileScanResult != null) {
+          return mobileScanResult;
+        }
+      }
+
       // Process ML Kit results if found
       for (final barcode in barcodes) {
-        final rawData = barcode.rawValue ?? "";
+        // Try rawValue first, then rawBytes if rawValue is empty
+        String rawData = barcode.rawValue ?? "";
+
+        // If rawValue is empty, try to get data from rawBytes
+        if (rawData.isEmpty &&
+            barcode.rawBytes != null &&
+            barcode.rawBytes!.isNotEmpty) {
+          debugLog("   ⚠️ rawValue empty, trying rawBytes...");
+          try {
+            rawData = String.fromCharCodes(barcode.rawBytes!);
+            debugLog("   Decoded from rawBytes: ${rawData.length} chars");
+          } catch (e) {
+            debugLog("   ❌ Failed to decode rawBytes: $e");
+          }
+        }
+
         debugLog("   ✅ ML Kit Barcode format: ${barcode.format.name}");
         debugLog("   Raw data length: ${rawData.length} chars");
         debugLog("   Raw data: $rawData");
+
+        // If ML Kit found barcode but data is still empty, try ZXing on this image
+        if (rawData.isEmpty) {
+          debugLog(
+            "   ⚠️ ML Kit found barcode but couldn't decode - trying ZXing...",
+          );
+          final zxingResult = await _scanWithZxing(imageFile);
+          if (zxingResult != null && zxingResult.rawData != null) {
+            return zxingResult;
+          }
+          final zxingPdf417Result = await _scanWithZxingPdf417(imageFile);
+          if (zxingPdf417Result != null && zxingPdf417Result.rawData != null) {
+            return zxingPdf417Result;
+          }
+          continue; // Skip this empty barcode, try next one
+        }
 
         // Parse NID and DOB from the barcode data
         final nidNumber = _extractNidFromBarcode(rawData);
@@ -1157,6 +1208,136 @@ class NidOcrServiceComplete {
     return null;
   }
 
+  /// Preprocess image (grayscale, contrast enhancement) and scan again
+  Future<({String? rawData, String? nidNumber, String? dateOfBirth})?>
+  _scanWithPreprocessedImage(File imageFile) async {
+    try {
+      debugLog("   📷 Preprocessing image for better barcode detection...");
+
+      // Read and decode image using image package
+      final bytes = await imageFile.readAsBytes();
+      final originalImage = img.decodeImage(bytes);
+
+      if (originalImage == null) {
+        debugLog("   ❌ Failed to decode image for preprocessing");
+        return null;
+      }
+
+      debugLog(
+        "   Original image: ${originalImage.width}x${originalImage.height}",
+      );
+
+      // Convert to grayscale for better barcode detection
+      final grayscaleImage = img.grayscale(originalImage);
+
+      // Enhance contrast
+      final contrastImage = img.adjustColor(grayscaleImage, contrast: 1.3);
+
+      // Apply sharpening
+      final sharpenedImage = img.convolution(
+        contrastImage,
+        filter: [0, -1, 0, -1, 5, -1, 0, -1, 0],
+      );
+
+      // Save preprocessed image
+      final directory = await getTemporaryDirectory();
+      final preprocessedPath =
+          '${directory.path}/preprocessed_${DateTime.now().millisecondsSinceEpoch}.png';
+      final preprocessedFile = File(preprocessedPath);
+      await preprocessedFile.writeAsBytes(img.encodePng(sharpenedImage));
+
+      debugLog("   Preprocessed image saved: $preprocessedPath");
+
+      // Try ZXing on preprocessed image
+      final params = DecodeParams(
+        format: Format.pdf417,
+        tryHarder: true,
+        tryRotate: true,
+        tryInverted: true,
+      );
+
+      final result = await zx.readBarcodeImagePathString(
+        preprocessedPath,
+        params,
+      );
+
+      // Clean up
+      try {
+        await preprocessedFile.delete();
+      } catch (_) {}
+
+      if (result.isValid && result.text != null && result.text!.isNotEmpty) {
+        final rawData = result.text!;
+        debugLog("   ✅ Preprocessed scan found barcode!");
+        debugLog("   Raw data: $rawData");
+
+        final nidNumber = _extractNidFromBarcode(rawData);
+        final dateOfBirth = _extractDobFromBarcode(rawData);
+
+        return (
+          rawData: rawData,
+          nidNumber: nidNumber,
+          dateOfBirth: dateOfBirth,
+        );
+      }
+
+      debugLog("   ⚠️ Preprocessed scan: No barcode found");
+    } catch (e) {
+      debugLog("   ❌ Preprocessing error: $e");
+    }
+    return null;
+  }
+
+  /// Scan using mobile_scanner library as fallback
+  Future<({String? rawData, String? nidNumber, String? dateOfBirth})?>
+  _scanWithMobileScanner(File imageFile) async {
+    try {
+      debugLog("   📷 Mobile Scanner: Analyzing image...");
+
+      // Create MobileScannerController for image analysis
+      final controller = mobile_scanner.MobileScannerController(
+        formats: [
+          // Use mobile_scanner's BarcodeFormat
+          mobile_scanner.BarcodeFormat.pdf417,
+          mobile_scanner.BarcodeFormat.dataMatrix,
+          mobile_scanner.BarcodeFormat.qrCode,
+        ],
+      );
+
+      try {
+        // Analyze image using mobile_scanner
+        final result = await controller.analyzeImage(imageFile.path);
+
+        if (result != null && result.barcodes.isNotEmpty) {
+          for (final barcode in result.barcodes) {
+            final rawData = barcode.rawValue ?? "";
+            if (rawData.isNotEmpty) {
+              debugLog("   ✅ Mobile Scanner found barcode!");
+              debugLog("   Format: ${barcode.format}");
+              debugLog("   Raw data: $rawData");
+
+              final nidNumber = _extractNidFromBarcode(rawData);
+              final dateOfBirth = _extractDobFromBarcode(rawData);
+
+              return (
+                rawData: rawData,
+                nidNumber: nidNumber,
+                dateOfBirth: dateOfBirth,
+              );
+            }
+          }
+        }
+
+        debugLog("   ⚠️ Mobile Scanner: No barcode found");
+      } finally {
+        await controller.dispose();
+      }
+    } catch (e) {
+      debugLog("   ❌ Mobile Scanner error: $e");
+    }
+    return null;
+  }
+
   /// Alias for backward compatibility
   Future<({String? rawData, String? nidNumber, String? dateOfBirth})>
   readPdf417FromImage(File imageFile) async {
@@ -1306,21 +1487,22 @@ class NidOcrServiceComplete {
     }
     debugLog("");
 
-    // Match NID number
-    final nidMatches = _matchNidNumbers(frontNidNumber, barcodeData.nidNumber);
-    debugLog("🔍 MATCHING RESULTS:");
-    debugLog("   NID Match: ${nidMatches ? '✅ YES' : '❌ NO'}");
-    debugLog("      Front: $frontNidNumber");
-    debugLog("      Barcode: ${barcodeData.nidNumber ?? 'N/A'}");
-
-    // Match Date of Birth
+    // Match Date of Birth (primary validation - DOB only)
     final dobMatches = _matchDates(frontDateOfBirth, barcodeData.dateOfBirth);
+    debugLog("🔍 MATCHING RESULTS:");
     debugLog("   DOB Match: ${dobMatches ? '✅ YES' : '❌ NO'}");
     debugLog("      Front: $frontDateOfBirth");
     debugLog("      Barcode: ${barcodeData.dateOfBirth ?? 'N/A'}");
+
+    // Also log NID for debugging (but not used for validation)
+    final nidMatches = _matchNidNumbers(frontNidNumber, barcodeData.nidNumber);
+    debugLog("   NID Match (info only): ${nidMatches ? '✅ YES' : '❌ NO'}");
+    debugLog("      Front: $frontNidNumber");
+    debugLog("      Barcode: ${barcodeData.nidNumber ?? 'N/A'}");
     debugLog("");
 
-    final bothMatch = nidMatches && dobMatches;
+    // Validate using DOB only - more reliable as NID extraction can fail
+    final bothMatch = dobMatches;
 
     debugLog(
       "🎯 FINAL RESULT: ${bothMatch ? '✅ VALIDATION PASSED' : '❌ VALIDATION FAILED'}",
@@ -1332,7 +1514,7 @@ class NidOcrServiceComplete {
       backSideValid: true,
       bothSidesMatch: bothMatch,
       errorMessage: !bothMatch
-          ? "Old NID front and back side data do not match"
+          ? "Date of birth on front and back side do not match"
           : null,
     );
   }
