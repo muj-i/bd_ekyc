@@ -94,12 +94,12 @@ class NidOcrServiceComplete {
   }
 
   /// Process OCR text for live scanning (back side specific)
-  LiveOcrState processOcrTextForBackSide(
+  OcrScanData processOcrTextForBackSide(
     String scannedText,
     NidScanResult frontData,
   ) {
     if (scannedText.isEmpty) {
-      return const LiveOcrState(ocrText: "", errorMessage: "No text detected");
+      return const OcrScanData(ocrText: "", errorMessage: "No text detected");
     }
 
     // For back side, extract back-side specific data
@@ -111,7 +111,7 @@ class NidOcrServiceComplete {
     );
 
     // For back side, show back-side specific extracted data
-    return LiveOcrState(
+    return OcrScanData(
       ocrText: scannedText,
       extractedNidNumber: null, // Don't show front data for back scan
       extractedDateOfBirth: null,
@@ -234,9 +234,9 @@ class NidOcrServiceComplete {
   }
 
   /// Process OCR text for live scanning
-  LiveOcrState processOcrText(String scannedText) {
+  OcrScanData processOcrText(String scannedText) {
     if (scannedText.isEmpty) {
-      return const LiveOcrState(ocrText: "", errorMessage: "No text detected");
+      return const OcrScanData(ocrText: "", errorMessage: "No text detected");
     }
 
     // Use the complete extraction logic
@@ -245,7 +245,7 @@ class NidOcrServiceComplete {
     final extractedName = extractEnglishNameFromNID(scannedText);
     final extractedYear = _extractBirthYearFromScannedData(scannedText);
 
-    return LiveOcrState(
+    return OcrScanData(
       ocrText: scannedText,
       extractedNidNumber: nidNumber,
       extractedDateOfBirth: extractedDateOfBirth,
