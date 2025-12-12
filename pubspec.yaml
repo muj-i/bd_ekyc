@@ -1,6 +1,6 @@
 name: bd_ekyc
 description: "A new Flutter package project."
-version: 0.0.1-beta
+version: 0.0.2-beta
 # homepage:
 
 environment:
@@ -17,6 +17,10 @@ dependencies:
   modal_bottom_sheet: ^3.0.0
   camera: ^0.10.5+9
   google_mlkit_text_recognition: ^0.15.0
+  google_mlkit_barcode_scanning: ^0.14.1
+  flutter_zxing: ^2.2.1  # ZXing-based scanner for better PDF417 support
+  mobile_scanner: ^7.1.4  # Alternative ML Kit scanner as fallback
+  image: ^4.6.0  # Image processing for barcode preprocessing
   path_provider: ^2.1.5
   device_info_plus: ^12.3.0
   package_info_plus: ^9.0.0

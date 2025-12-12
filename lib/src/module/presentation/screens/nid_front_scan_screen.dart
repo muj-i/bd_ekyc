@@ -28,9 +28,9 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
   NidScanResult? _capturedFrontResult; // Store captured result
   String? _lastErrorMessage; // Track last error to prevent multiple popups
 
-  // Cutout size (optimized for NID cards)
-  final double cutoutWidth = 340;
-  final double cutoutHeight = 220;
+  // Cutout size (optimized for NID cards - increased height for full card capture)
+  final double cutoutWidth = 380; // Increased from 340 for better fit
+  final double cutoutHeight = 260; // Increased from 220 for better coverage
 
   @override
   void initState() {
@@ -181,31 +181,17 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
           } else {
             debugLog("Data mismatch between auto-scan and captured image");
             _showErrorDialog("Data verification failed. Please try again.");
-            _hasAutoCaptureFired = false; // Allow retry
-            // Restart auto OCR
-            if (_controller != null && _controller!.value.isInitialized) {
-              ocrState.startAutoOcr(_controller!);
-            }
           }
         }
       } else {
-        // Show error and allow retry
+        // Show error - user must tap Ready to Scan again
         _showErrorDialog(
           capturedOcrResult.errorMessage ?? "Front side scan failed",
         );
-        _hasAutoCaptureFired = false; // Allow retry
-        // Restart auto OCR
-        if (_controller != null && _controller!.value.isInitialized) {
-          ocrState.startAutoOcr(_controller!);
-        }
       }
     } else {
       debugLog("Front side capture failed");
-      _hasAutoCaptureFired = false; // Allow retry
-      // Restart auto OCR
-      if (_controller != null && _controller!.value.isInitialized) {
-        ocrState.startAutoOcr(_controller!);
-      }
+      _showErrorDialog("Failed to capture image. Please try again.");
     }
   }
 
@@ -289,6 +275,9 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
     if (_lastErrorMessage == error) return;
     _lastErrorMessage = error;
 
+    // Stop auto OCR immediately
+    context.scanController.stopAutoOcr();
+
     showAlertDialog(
       context,
       alertType: AlertType.error,
@@ -296,10 +285,10 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
 
       onButtonPressed: () {
         pop(context);
-        _hasAutoCaptureFired = false; // Allow retry
-        _lastErrorMessage = null; // Reset to allow new errors
+        // Reinitialize everything - user must tap Ready to Scan again
+        _reinitializeEverything();
       },
-      btnText: "Retry",
+      btnText: "OK",
     );
   }
 
@@ -402,6 +391,16 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
   }
 
   Widget _buildCameraView(OcrScanData ocrState) {
+    // Safety check - if controller is disposed or null, show loading
+    if (_controller == null ||
+        !_controller!.value.isInitialized ||
+        _cameraDisposed) {
+      debugLog("_buildCameraView: Camera not ready, showing loading");
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
+    }
+
     return Stack(
       children: [
         // Full screen camera preview
@@ -671,12 +670,14 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
               ),
             ],
           ),
-          body: _cameraDisposed && _capturedFrontResult != null
+          body: _cameraDisposed || _capturedFrontResult != null
               ? (() {
                   debugLog("Build: Showing captured result view");
                   return _buildCapturedResultView();
                 })()
-              : !isCameraInitialized
+              : !isCameraInitialized ||
+                    _controller == null ||
+                    !_controller!.value.isInitialized
               ? (() {
                   debugLog(
                     "Build: Showing loading screen - camera not initialized",

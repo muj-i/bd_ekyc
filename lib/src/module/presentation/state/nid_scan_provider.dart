@@ -1,5 +1,4 @@
 import 'package:bd_ekyc/exports.dart';
-import 'package:bd_ekyc/src/module/presentation/widgets/edge_to_edge_config.dart';
 
 /// InheritedNotifier wrapper that provides NidScanController to the widget tree
 class NidScanProvider extends InheritedNotifier<NidScanController> {
@@ -52,9 +51,6 @@ class _NidScanManagerState extends State<NidScanManager> {
 
   @override
   Widget build(BuildContext context) {
-    return EdgeToEdgeConfig(
-      builder: (isEdgeToEdge, os) =>
-          NidScanProvider(controller: _controller, child: widget.child),
-    );
+    return NidScanProvider(controller: _controller, child: widget.child);
   }
 }

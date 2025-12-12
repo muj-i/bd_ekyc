@@ -34,9 +34,10 @@ class _NidBackScanScreenState extends State<_NidBackScanScreenContent>
   NidScanResult? _capturedBackResult; // Store captured back result
   String? _lastErrorMessage; // Track last error to prevent multiple popups
 
-  // Cutout size (optimized for NID cards)
-  final double cutoutWidth = 340;
-  final double cutoutHeight = 220;
+  // Cutout size (optimized for NID cards - larger size to fully capture barcode)
+  final double cutoutWidth = 380; // Wide enough for full NID card width
+  final double cutoutHeight =
+      280; // Increased to 280 to fully capture PDF417 barcode at bottom
 
   @override
   void initState() {
@@ -153,6 +154,9 @@ class _NidBackScanScreenState extends State<_NidBackScanScreenContent>
     if (_lastErrorMessage == error) return;
     _lastErrorMessage = error;
 
+    // Stop auto OCR immediately
+    context.scanController.stopAutoOcr();
+
     showAlertDialog(
       context,
       alertType: AlertType.error,
@@ -160,10 +164,10 @@ class _NidBackScanScreenState extends State<_NidBackScanScreenContent>
 
       onButtonPressed: () {
         pop(context);
-        _hasAutoCaptureFired = false; // Allow retry
-        _lastErrorMessage = null; // Reset to allow new errors
+        // Reinitialize everything - user must tap Ready to Scan again
+        _reinitializeEverything();
       },
-      btnText: "Retry",
+      btnText: "OK",
     );
   }
 
@@ -214,7 +218,9 @@ class _NidBackScanScreenState extends State<_NidBackScanScreenContent>
     // Stop auto OCR during capture
     ocrState.stopAutoOcr();
 
-    final capturedFile = await ocrState.captureAndCrop(
+    // Use captureAndCropWithOriginal to get both cropped and original images
+    // Original image is needed for barcode scanning (barcode may be cut off in cropped image)
+    final captureResult = await ocrState.captureAndCropWithOriginal(
       controller: _controller!,
       cutoutWidth: cutoutWidth,
       cutoutHeight: cutoutHeight,
@@ -222,15 +228,29 @@ class _NidBackScanScreenState extends State<_NidBackScanScreenContent>
       screenHeight: MediaQuery.of(context).size.height,
     );
 
+    final capturedFile = captureResult.croppedFile;
+    final originalFile = captureResult.originalFile;
+
     if (capturedFile != null && mounted) {
       debugLog("Back side image captured, processing and cross-checking");
+      debugLog("Original image for barcode: ${originalFile?.path}");
 
-      // Process the captured image with OCR
+      // Process the captured image with OCR, pass original for barcode scanning
       final capturedOcrResult = await ocrState.scanBackSide(
         context,
         capturedFile,
         widget.frontScanResult,
+        originalImageFile: originalFile,
       );
+
+      // Clean up original file after scanning
+      if (originalFile != null) {
+        try {
+          await originalFile.delete();
+        } catch (e) {
+          debugLog("Error deleting original file: $e");
+        }
+      }
 
       if (capturedOcrResult.success) {
         // Cross-check auto-scan data vs captured OCR data
@@ -265,37 +285,17 @@ class _NidBackScanScreenState extends State<_NidBackScanScreenContent>
           } else {
             debugLog("Data mismatch between auto-scan and captured image");
             _showErrorDialog("Data verification failed. Please try again.");
-            _hasAutoCaptureFired = false; // Allow retry
-            // Restart auto OCR
-            if (_controller != null && _controller!.value.isInitialized) {
-              ocrState.startAutoOcrForBackSide(
-                _controller!,
-                widget.frontScanResult,
-              );
-            }
           }
         }
       } else {
-        // Show error and allow retry
+        // Show error - user must tap Ready to Scan again
         _showErrorDialog(
           capturedOcrResult.errorMessage ?? "Back side scan failed",
         );
-        _hasAutoCaptureFired = false; // Allow retry
-        // Restart auto OCR
-        if (_controller != null && _controller!.value.isInitialized) {
-          ocrState.startAutoOcrForBackSide(
-            _controller!,
-            widget.frontScanResult,
-          );
-        }
       }
     } else {
       debugLog("Back side capture failed");
-      _hasAutoCaptureFired = false; // Allow retry
-      // Restart auto OCR
-      if (_controller != null && _controller!.value.isInitialized) {
-        ocrState.startAutoOcrForBackSide(_controller!, widget.frontScanResult);
-      }
+      _showErrorDialog("Failed to capture image. Please try again.");
     }
   }
 
@@ -366,9 +366,11 @@ class _NidBackScanScreenState extends State<_NidBackScanScreenContent>
               ),
             ],
           ),
-          body: _cameraDisposed && _capturedBackResult != null
+          body: _cameraDisposed || _capturedBackResult != null
               ? _buildCapturedResultView()
-              : !isCameraInitialized
+              : !isCameraInitialized ||
+                    _controller == null ||
+                    !_controller!.value.isInitialized
               ? const Center(
                   child: CircularProgressIndicator(color: Colors.white),
                 )
@@ -481,6 +483,16 @@ class _NidBackScanScreenState extends State<_NidBackScanScreenContent>
   }
 
   Widget _buildCameraView(OcrScanData ocrState) {
+    // Safety check - if controller is disposed or null, show loading
+    if (_controller == null ||
+        !_controller!.value.isInitialized ||
+        _cameraDisposed) {
+      debugLog("_buildCameraView: Camera not ready, showing loading");
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
+    }
+
     return Stack(
       children: [
         // Camera preview
