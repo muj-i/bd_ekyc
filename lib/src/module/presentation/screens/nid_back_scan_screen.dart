@@ -35,7 +35,7 @@ class _NidBackScanScreenState extends State<_NidBackScanScreenContent>
   String? _lastErrorMessage; // Track last error to prevent multiple popups
 
   // Cutout size (optimized for NID cards - larger size to fully capture barcode)
-  final double cutoutWidth = 380; // Wide enough for full NID card width
+  final double cutoutWidth = 440; // Wide enough for full NID card width
   final double cutoutHeight =
       280; // Increased to 280 to fully capture PDF417 barcode at bottom
 
@@ -507,8 +507,8 @@ class _NidBackScanScreenState extends State<_NidBackScanScreenContent>
         Positioned.fill(
           child: CustomPaint(
             painter: CutoutOverlayPainter(
-              cutoutWidth: cutoutWidth,
-              cutoutHeight: cutoutHeight,
+              cutoutWidth: cutoutWidth - 80,
+              cutoutHeight: cutoutHeight - 40,
               overlayColor: Colors.black.withValues(alpha: 0.7),
               borderColor: ocrState.hasValidBackData == true
                   ? Colors.green.withValues(alpha: .4)
@@ -554,7 +554,7 @@ class _NidBackScanScreenState extends State<_NidBackScanScreenContent>
         // Ready for scan button (shown when camera is ready but not scanning)
         if (!_isReadyForScan && !ocrState.isProcessing)
           Positioned(
-            bottom: 160,
+            bottom: 140,
             left: 0,
             right: 0,
             child: Center(

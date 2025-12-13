@@ -29,8 +29,8 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
   String? _lastErrorMessage; // Track last error to prevent multiple popups
 
   // Cutout size (optimized for NID cards - increased height for full card capture)
-  final double cutoutWidth = 380; // Increased from 340 for better fit
-  final double cutoutHeight = 260; // Increased from 220 for better coverage
+  final double cutoutWidth = 440; // Increased from 340 for better fit
+  final double cutoutHeight = 280; // Increased from 220 for better coverage
 
   @override
   void initState() {
@@ -410,8 +410,8 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
         Positioned.fill(
           child: CustomPaint(
             painter: CutoutOverlayPainter(
-              cutoutWidth: cutoutWidth,
-              cutoutHeight: cutoutHeight,
+              cutoutWidth: cutoutWidth - 80,
+              cutoutHeight: cutoutHeight - 40,
               overlayColor: Colors.black.withValues(alpha: 0.7),
               borderColor: ocrState.hasValidNidData
                   ? Colors.green.withValues(alpha: .4)
@@ -495,7 +495,7 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
             !ocrState.isProcessing &&
             _capturedFrontResult == null)
           Positioned(
-            bottom: 160,
+            bottom: 140,
             left: 0,
             right: 0,
             child: Center(
