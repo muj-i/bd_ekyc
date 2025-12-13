@@ -1,6 +1,5 @@
-
-
 import 'package:bd_ekyc/exports.dart';
+import 'package:bd_ekyc/src/module/presentation/widgets/edge_to_edge_config.dart';
 
 class NidScanSummaryScreen extends StatelessWidget {
   final NidScanResult frontResult;
@@ -14,268 +13,278 @@ class NidScanSummaryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text("NID Scan Complete"),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () =>
-              Navigator.of(context).popUntil((route) => route.isFirst),
-          icon: const Icon(Icons.home),
+    return EdgeToEdgeConfig(
+      builder: (_, _) => Scaffold(
+        backgroundColor: Colors.grey[50],
+        appBar: AppBar(
+          title: const Text("NID Scan Complete"),
+          backgroundColor: Colors.green,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            onPressed: () =>
+                Navigator.of(context).popUntil((route) => route.isFirst),
+            icon: const Icon(Icons.home),
+          ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Success Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.green,
-                borderRadius: BorderRadius.circular(12),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Success Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.white, size: 32),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        "NID Scan Completed Successfully!",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: const Row(
+
+              const SizedBox(height: 24),
+
+              // Extracted Information
+              Stack(
                 children: [
-                  Icon(Icons.check_circle, color: Colors.white, size: 32),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      "NID Scan Completed Successfully!",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                  _buildInfoCard(
+                    title: "Extracted Information",
+                    icon: Icons.person,
+                    children: [
+                      _buildInfoRow(
+                        "NID Number",
+                        frontResult.nidNumber ?? "N/A",
+                      ),
+                      _buildInfoRow("Full Name", frontResult.nidName ?? "N/A"),
+                      _buildInfoRow(
+                        "Date of Birth",
+                        frontResult.nidDateOfBirth ?? "N/A",
+                      ),
+                      (backResult.nidIssueDate != null)
+                          ? _buildInfoRow(
+                              "Issue Date",
+                              backResult.nidIssueDate!,
+                            )
+                          : SizedBox.shrink(),
+                      _buildInfoRow(
+                        "NID Type",
+                        frontResult.isSmartNid == true
+                            ? "Smart NID"
+                            : "Old NID",
+                      ),
+                      _buildInfoRow(
+                        "13-Digit Converted",
+                        frontResult.is13DigitNid == true ? "Yes" : "No",
+                      ),
+                    ],
+                  ),
+                  Positioned(
+                    right: 16,
+                    top: 48,
+                    child: InkWell(
+                      onTap: () {
+                        showWarningToast(
+                          context,
+                          message:
+                              '13 digit NID found, 4 digit birth year added to create 17 digit NID.',
+                        );
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: PackageColors.deepYellow.withValues(alpha: .2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Icon(
+                            Icons.info_outline_rounded,
+                            size: 16,
+                            color: PackageColors.deepYellow,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
-            ),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
-            // Extracted Information
-            Stack(
-              children: [
-                _buildInfoCard(
-                  title: "Extracted Information",
-                  icon: Icons.person,
-                  children: [
-                    _buildInfoRow("NID Number", frontResult.nidNumber ?? "N/A"),
-                    _buildInfoRow("Full Name", frontResult.nidName ?? "N/A"),
-                    _buildInfoRow(
-                      "Date of Birth",
-                      frontResult.nidDateOfBirth ?? "N/A",
-                    ),
-                    (backResult.nidIssueDate != null)
-                        ? _buildInfoRow("Issue Date", backResult.nidIssueDate!)
-                        : SizedBox.shrink(),
-                    _buildInfoRow(
-                      "NID Type",
-                      frontResult.isSmartNid == true ? "Smart NID" : "Old NID",
-                    ),
-                    _buildInfoRow(
-                      "13-Digit Converted",
-                      frontResult.is13DigitNid == true ? "Yes" : "No",
-                    ),
-                  ],
-                ),
-                Positioned(
-                  right: 16,
-                  top: 48,
-                  child: InkWell(
-                    onTap: () {
-                      showWarningToast(
+              // Captured Images
+              _buildInfoCard(
+                title: "Captured Images",
+                icon: Icons.camera_alt,
+                children: [
+                  Row(
+                    children: [
+                      // Front Side Image
+                      Expanded(
+                        child: Column(
+                          children: [
+                            const Text(
+                              "Front Side",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            frontResult.frontSideImageFile != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.file(
+                                      frontResult.frontSideImageFile!,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                    ),
+                                  )
+                                : frontResult.imageFile != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.file(
+                                      frontResult.imageFile!,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                    ),
+                                  )
+                                : const Center(
+                                    child: Icon(
+                                      Icons.image_not_supported,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Back Side Image
+                      Expanded(
+                        child: Column(
+                          children: [
+                            const Text(
+                              "Back Side",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            backResult.backSideImageFile != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.file(
+                                      backResult.backSideImageFile!,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                    ),
+                                  )
+                                : backResult.imageFile != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.file(
+                                      backResult.imageFile!,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                    ),
+                                  )
+                                : const Center(
+                                    child: Icon(
+                                      Icons.image_not_supported,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Validation Status
+              _buildInfoCard(
+                title: "Validation Status",
+                icon: Icons.verified,
+                children: [
+                  _buildStatusRow(
+                    "Front Side Data",
+                    frontResult.success,
+                    frontResult.success ? "Valid" : "Invalid",
+                  ),
+                  _buildStatusRow(
+                    "Back Side Data",
+                    backResult.success,
+                    backResult.success ? "Valid" : "Invalid",
+                  ),
+                  _buildStatusRow(
+                    "Cross Validation",
+                    frontResult.success && backResult.success,
+                    frontResult.success && backResult.success
+                        ? "Front & Back Match"
+                        : "Validation Failed",
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 32),
+
+              // Action Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.of(
                         context,
-                        message:
-                            '13 digit NID found, 4 digit birth year added to create 17 digit NID.',
-                      );
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: PackageColors.deepYellow.withValues(alpha: .2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Icon(
-                          Icons.info_outline_rounded,
-                          size: 16,
-                          color: PackageColors.deepYellow,
-                        ),
+                      ).popUntil((route) => route.isFirst),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text("Scan Again"),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Captured Images
-            _buildInfoCard(
-              title: "Captured Images",
-              icon: Icons.camera_alt,
-              children: [
-                Row(
-                  children: [
-                    // Front Side Image
-                    Expanded(
-                      child: Column(
-                        children: [
-                          const Text(
-                            "Front Side",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("KYC data ready for submission!"),
+                            backgroundColor: Colors.green,
                           ),
-                          const SizedBox(height: 8),
-                          frontResult.frontSideImageFile != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    frontResult.frontSideImageFile!,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                  ),
-                                )
-                              : frontResult.imageFile != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    frontResult.imageFile!,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                  ),
-                                )
-                              : const Center(
-                                  child: Icon(
-                                    Icons.image_not_supported,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                        ],
+                        );
+                      },
+                      icon: const Icon(Icons.check),
+                      label: const Text("Submit KYC"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    // Back Side Image
-                    Expanded(
-                      child: Column(
-                        children: [
-                          const Text(
-                            "Back Side",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          backResult.backSideImageFile != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    backResult.backSideImageFile!,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                  ),
-                                )
-                              : backResult.imageFile != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    backResult.imageFile!,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                  ),
-                                )
-                              : const Center(
-                                  child: Icon(
-                                    Icons.image_not_supported,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Validation Status
-            _buildInfoCard(
-              title: "Validation Status",
-              icon: Icons.verified,
-              children: [
-                _buildStatusRow(
-                  "Front Side Data",
-                  frontResult.success,
-                  frontResult.success ? "Valid" : "Invalid",
-                ),
-                _buildStatusRow(
-                  "Back Side Data",
-                  backResult.success,
-                  backResult.success ? "Valid" : "Invalid",
-                ),
-                _buildStatusRow(
-                  "Cross Validation",
-                  frontResult.success && backResult.success,
-                  frontResult.success && backResult.success
-                      ? "Front & Back Match"
-                      : "Validation Failed",
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 32),
-
-            // Action Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => Navigator.of(
-                      context,
-                    ).popUntil((route) => route.isFirst),
-                    icon: const Icon(Icons.refresh),
-                    label: const Text("Scan Again"),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("KYC data ready for submission!"),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.check),
-                    label: const Text("Submit KYC"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

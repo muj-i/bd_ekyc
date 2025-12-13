@@ -1,4 +1,5 @@
 import 'package:bd_ekyc/exports.dart';
+import 'package:bd_ekyc/src/module/presentation/widgets/edge_to_edge_config.dart';
 
 /// Wrapper that provides NidScanManager for the back scan screen
 class NidBackScanScreen extends StatelessWidget {
@@ -347,34 +348,36 @@ class _NidBackScanScreenState extends State<_NidBackScanScreenContent>
           });
         }
 
-        return Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            title: const Text("NID Back Side Scan"),
+        return EdgeToEdgeConfig(
+          builder: (_, _) => Scaffold(
             backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            leading: IconButton(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.arrow_back),
-            ),
-            actions: [
-              IconButton(
-                onPressed: _reinitializeEverything,
-                icon: const Icon(Icons.restart_alt),
-                tooltip: "Refresh & Restart",
+            appBar: AppBar(
+              title: const Text("NID Back Side Scan"),
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              leading: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.arrow_back),
               ),
-            ],
+              actions: [
+                IconButton(
+                  onPressed: _reinitializeEverything,
+                  icon: const Icon(Icons.restart_alt),
+                  tooltip: "Refresh & Restart",
+                ),
+              ],
+            ),
+            body: _cameraDisposed || _capturedBackResult != null
+                ? _buildCapturedResultView()
+                : !isCameraInitialized ||
+                      _controller == null ||
+                      !_controller!.value.isInitialized
+                ? const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  )
+                : _buildCameraView(ocrState),
           ),
-          body: _cameraDisposed || _capturedBackResult != null
-              ? _buildCapturedResultView()
-              : !isCameraInitialized ||
-                    _controller == null ||
-                    !_controller!.value.isInitialized
-              ? const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                )
-              : _buildCameraView(ocrState),
         );
       },
     );
@@ -404,79 +407,81 @@ class _NidBackScanScreenState extends State<_NidBackScanScreenContent>
       "Displaying captured back image: ${_capturedBackResult!.backSideImageFile!.path}",
     );
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: Container(
-          margin: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.green, width: 3),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(9),
-            child: Image.file(
-              _capturedBackResult!.backSideImageFile!,
-              fit: BoxFit.contain,
-              width: double.infinity,
+    return EdgeToEdgeConfig(
+      builder: (_, _) => Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Container(
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green, width: 3),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(9),
+              child: Image.file(
+                _capturedBackResult!.backSideImageFile!,
+                fit: BoxFit.contain,
+                width: double.infinity,
+              ),
             ),
           ),
         ),
-      ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    "Back side captured successfully!",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(
-                    builder: (context) => NidScanSummaryScreen(
-                      frontResult: widget.frontScanResult,
-                      backResult: _capturedBackResult!,
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.summarize),
-              label: const Text("View Summary"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
+        bottomNavigationBar: Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      "Back side captured successfully!",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (context) => NidScanSummaryScreen(
+                        frontResult: widget.frontScanResult,
+                        backResult: _capturedBackResult!,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.summarize),
+                label: const Text("View Summary"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

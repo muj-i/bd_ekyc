@@ -1,4 +1,5 @@
 import 'package:bd_ekyc/exports.dart';
+import 'package:bd_ekyc/src/module/presentation/widgets/edge_to_edge_config.dart';
 
 /// Wrapper that provides NidScanManager for the front scan screen
 class NidFrontScanScreen extends StatelessWidget {
@@ -316,75 +317,77 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
       "Displaying captured image: ${_capturedFrontResult!.frontSideImageFile!.path}",
     );
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: Container(
-          margin: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.green, width: 3),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(9),
-            child: Image.file(
-              _capturedFrontResult!.frontSideImageFile!,
-              fit: BoxFit.contain,
-              width: double.infinity,
+    return EdgeToEdgeConfig(
+      builder: (_, _) => Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: Container(
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green, width: 3),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(9),
+              child: Image.file(
+                _capturedFrontResult!.frontSideImageFile!,
+                fit: BoxFit.contain,
+                width: double.infinity,
+              ),
             ),
           ),
         ),
-      ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    "Front side captured successfully!",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+        bottomNavigationBar: Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      "Front side captured successfully!",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () {
+                  push(
+                    context,
+                    NidBackScanScreen(frontScanResult: _capturedFrontResult!),
+                  );
+                },
+                icon: const Icon(Icons.arrow_forward),
+                label: const Text("Scan Back Side"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () {
-                push(
-                  context,
-                  NidBackScanScreen(frontScanResult: _capturedFrontResult!),
-                );
-              },
-              icon: const Icon(Icons.arrow_forward),
-              label: const Text("Scan Back Side"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -655,51 +658,53 @@ class _NidFrontScanScreenState extends State<_NidFrontScanScreenContent>
           });
         }
 
-        return Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            title: const Text("NID Front Side Scan"),
+        return EdgeToEdgeConfig(
+          builder: (_, _) => Scaffold(
             backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            actions: [
-              IconButton(
-                onPressed: _reinitializeEverything,
-                icon: const Icon(Icons.restart_alt),
-                tooltip: "Refresh & Restart",
-              ),
-            ],
+            appBar: AppBar(
+              title: const Text("NID Front Side Scan"),
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              actions: [
+                IconButton(
+                  onPressed: _reinitializeEverything,
+                  icon: const Icon(Icons.restart_alt),
+                  tooltip: "Refresh & Restart",
+                ),
+              ],
+            ),
+            body: _cameraDisposed || _capturedFrontResult != null
+                ? (() {
+                    debugLog("Build: Showing captured result view");
+                    return _buildCapturedResultView();
+                  })()
+                : !isCameraInitialized ||
+                      _controller == null ||
+                      !_controller!.value.isInitialized
+                ? (() {
+                    debugLog(
+                      "Build: Showing loading screen - camera not initialized",
+                    );
+                    return const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(color: Colors.white),
+                          SizedBox(height: 16),
+                          Text(
+                            "Initializing Camera...",
+                            style: TextStyle(color: Colors.white, fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    );
+                  })()
+                : (() {
+                    debugLog("Build: Showing camera view");
+                    return _buildCameraView(ocrState);
+                  })(),
           ),
-          body: _cameraDisposed || _capturedFrontResult != null
-              ? (() {
-                  debugLog("Build: Showing captured result view");
-                  return _buildCapturedResultView();
-                })()
-              : !isCameraInitialized ||
-                    _controller == null ||
-                    !_controller!.value.isInitialized
-              ? (() {
-                  debugLog(
-                    "Build: Showing loading screen - camera not initialized",
-                  );
-                  return const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(color: Colors.white),
-                        SizedBox(height: 16),
-                        Text(
-                          "Initializing Camera...",
-                          style: TextStyle(color: Colors.white, fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  );
-                })()
-              : (() {
-                  debugLog("Build: Showing camera view");
-                  return _buildCameraView(ocrState);
-                })(),
         );
       },
     );
