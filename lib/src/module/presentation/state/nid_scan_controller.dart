@@ -209,6 +209,59 @@ class NidScanController extends ChangeNotifier {
   }
 
   /// Manual capture and crop from camera cutout
+  /// Returns both cropped file and original file path for barcode scanning
+  Future<({File? croppedFile, File? originalFile})> captureAndCropWithOriginal({
+    required CameraController controller,
+    required double cutoutWidth,
+    required double cutoutHeight,
+    required double screenWidth,
+    required double screenHeight,
+  }) async {
+    debugLog("Starting captureAndCropWithOriginal process");
+
+    try {
+      final XFile file = await controller.takePicture();
+      debugLog("Picture taken successfully: ${file.path}");
+
+      final imageFile = File(file.path);
+
+      // Save a copy of original for barcode scanning
+      final directory = await getTemporaryDirectory();
+      final originalCopyPath =
+          '${directory.path}/original_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final originalCopy = await imageFile.copy(originalCopyPath);
+      debugLog("Original image copied for barcode: $originalCopyPath");
+
+      final croppedFile = await _cropImageToCutout(
+        imageFile,
+        cutoutWidth,
+        cutoutHeight,
+        screenWidth,
+        screenHeight,
+        controller,
+      );
+
+      try {
+        await imageFile.delete();
+      } catch (e) {
+        debugLog("Error deleting original image: $e");
+      }
+
+      debugLog(
+        "Returning cropped: ${croppedFile?.path}, original: ${originalCopy.path}",
+      );
+      return (croppedFile: croppedFile, originalFile: originalCopy);
+    } catch (e) {
+      debugLog("Capture error: $e");
+      if (!_isDisposed) {
+        _scanData = _scanData.copyWith(errorMessage: "Capture Error: $e");
+        _notify();
+      }
+      return (croppedFile: null, originalFile: null);
+    }
+  }
+
+  /// Manual capture and crop from camera cutout (legacy - for front side)
   Future<File?> captureAndCrop({
     required CameraController controller,
     required double cutoutWidth,
@@ -393,8 +446,9 @@ class NidScanController extends ChangeNotifier {
   Future<NidScanResult> scanBackSide(
     BuildContext context,
     File imageFile,
-    NidScanResult frontData,
-  ) async {
+    NidScanResult frontData, {
+    File? originalImageFile, // Original full image for barcode scanning
+  }) async {
     _scanData = _scanData.copyWith(isProcessing: true);
     _notify();
 
@@ -403,6 +457,7 @@ class NidScanController extends ChangeNotifier {
         context,
         imageFile,
         frontData,
+        originalImageFile: originalImageFile,
       );
       _scanData = _scanData.copyWith(isProcessing: false);
       _notify();
